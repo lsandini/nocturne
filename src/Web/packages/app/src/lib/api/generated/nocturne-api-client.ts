@@ -26198,6 +26198,7 @@ export interface UISettingsConfiguration {
     services?: ServicesSettings;
     dataQuality?: DataQualitySettings;
     security?: SecuritySettings;
+    haloDial?: HaloDialConfig;
 }
 
 export interface DeviceSettings {
@@ -26544,6 +26545,68 @@ export interface CompressionLowDetectionSettings {
 export interface SecuritySettings {
     requireAuthForPublicAccess?: boolean;
     hideGlucoseInFavicon?: boolean;
+}
+
+export interface HaloDialConfig {
+    schemaVersion?: number;
+    colorMode?: HaloDialColorMode;
+    historyMinutes?: number;
+    predictionMinutes?: number;
+    predictionCurve?: HaloDialPredictionCurve;
+    centerSub?: HaloDialCenterSubElement;
+    innerLeftArc?: HaloDialArcElement | undefined;
+    innerRightArc?: HaloDialArcElement | undefined;
+    iobMaxUnits?: number;
+    cobMaxGrams?: number;
+    corners?: HaloDialCorners;
+    elementConfig?: { [key: string]: any; };
+}
+
+export enum HaloDialColorMode {
+    Discrete = "Discrete",
+    Continuous = "Continuous",
+}
+
+export enum HaloDialPredictionCurve {
+    Main = "Main",
+    Iob = "Iob",
+    Uam = "Uam",
+    Cob = "Cob",
+    ZeroTemp = "ZeroTemp",
+}
+
+export enum HaloDialCenterSubElement {
+    MinutesAndDelta = "MinutesAndDelta",
+    MinutesOnly = "MinutesOnly",
+    DeltaOnly = "DeltaOnly",
+    Mmol = "Mmol",
+    None = "None",
+}
+
+export enum HaloDialArcElement {
+    Iob = "Iob",
+    Cob = "Cob",
+    BasalPercent = "BasalPercent",
+    Sensitivity = "Sensitivity",
+}
+
+export interface HaloDialCorners {
+    tl?: HaloDialCornerElement[];
+    tr?: HaloDialCornerElement[];
+    bl?: HaloDialCornerElement[];
+    br?: HaloDialCornerElement[];
+}
+
+export enum HaloDialCornerElement {
+    BasalRate = "BasalRate",
+    Reservoir = "Reservoir",
+    SensorAge = "SensorAge",
+    PumpSiteAge = "PumpSiteAge",
+    Battery = "Battery",
+    LoopLabel = "LoopLabel",
+    LoopDot = "LoopDot",
+    Direction = "Direction",
+    Eventual = "Eventual",
 }
 
 /** User preferences response */
