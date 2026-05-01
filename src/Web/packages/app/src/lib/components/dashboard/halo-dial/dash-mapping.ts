@@ -18,6 +18,9 @@ export function predictionDashArray(
       return "3 3";
     case PumpModeState.Manual:
       return "1 4";
+    // Automatic, Boost, EaseOff, Sleep, Exercise, null, undefined render as solid.
+    // If a future PumpModeState variant is added it will inherit "solid" here;
+    // update this switch when introducing new dash styles.
     default:
       return undefined;
   }

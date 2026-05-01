@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tryGetRealtimeStore } from "$lib/stores/realtime-store.svelte";
+  import { STALE_THRESHOLD_MS } from "$lib/constants/staleness";
   import {
     glucoseUnits,
     predictionMinutes,
@@ -32,7 +33,6 @@
   const isConnected = $derived(realtimeStore?.isConnected ?? false);
 
   // Stale threshold in milliseconds (10 minutes)
-  const STALE_THRESHOLD_MS = 10 * 60 * 1000;
 
   // Prediction horizon in milliseconds
   const predictionHorizonMs = $derived(predictionMinutes.current * 60 * 1000);

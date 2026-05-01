@@ -29,7 +29,7 @@ export {
  * back to this when the server returns null; in normal operation the server
  * authors defaults and this is unreachable.
  */
-export function defaultHaloDialConfig(): Required<HaloDialConfig> {
+export function defaultHaloDialConfig(): HaloDialConfig {
   return {
     schemaVersion: 1,
     colorMode: HaloDialColorMode.Discrete,

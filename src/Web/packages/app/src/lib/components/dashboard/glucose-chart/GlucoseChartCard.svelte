@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type BasalPoint, BasalDeliveryOrigin } from "$lib/api";
   import type { EntryRecord } from "$lib/constants/entry-categories";
+  import { STALE_THRESHOLD_MS } from "$lib/constants/staleness";
   import { bg, bgLabel } from "$lib/utils/formatting";
   import { EntryEditDialog } from "$lib/components/entries";
   import {
@@ -600,8 +601,6 @@
     }
     return latestEndTime;
   });
-
-  const STALE_THRESHOLD_MS = 10 * 60 * 1000;
 
   const staleBasalData = $derived.by(() => {
     if (lastBasalSourceTime === 0) return null;

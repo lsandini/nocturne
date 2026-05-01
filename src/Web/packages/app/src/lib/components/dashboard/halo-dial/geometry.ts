@@ -56,13 +56,16 @@ export interface HistoryVerticesOptions {
 }
 
 /**
- * Lay out history readings on the ring. When the natural CCW sweep
- * (`historyMinutes * DEGREES_PER_MINUTE`) fits inside the unallocated arc
- * (`360 - predictionSweep`), every vertex sits on the ring at radius
- * RING_RADIUS. When it doesn't fit, the sweep is clamped to the budget
- * (minus MIN_GAP_DEG) and the radius grows linearly per the
- * Archimedean-spiral fallback so the oldest reading lands at
- * `RING_RADIUS + SPIRAL_MAX_OUTGROW_PX`.
+ * Lay out history readings on the ring. The activation check is asymmetric
+ * by design: the spiral is only triggered when the natural CCW sweep
+ * (`historyMinutes * DEGREES_PER_MINUTE`) actually exceeds the unallocated arc
+ * `360 - predictionSweep` (gap NOT subtracted). Once triggered, the sweep is
+ * then clamped to `360 - predictionSweep - MIN_GAP_DEG` so the visible gap
+ * is preserved, and the radius grows linearly per the Archimedean-spiral
+ * fallback so the oldest reading lands at
+ * `RING_RADIUS + SPIRAL_MAX_OUTGROW_PX`. Subtracting MIN_GAP_DEG from the
+ * activation threshold would (incorrectly) trigger the spiral on the
+ * canonical 15-min/45-min default where the natural sweeps tile exactly.
  */
 export function historyVertices({
   values,
