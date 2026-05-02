@@ -1,26 +1,13 @@
 <script lang="ts">
+	import { getDirectionInfo } from "$lib/utils";
+
 	interface Props {
 		value: { direction: string } | null;
 	}
 
 	const { value }: Props = $props();
 
-	const LABELS: Record<string, string> = {
-		DoubleUp: "Rising fast",
-		SingleUp: "Rising",
-		FortyFiveUp: "Slowly rising",
-		Flat: "Steady",
-		FortyFiveDown: "Slowly falling",
-		SingleDown: "Falling",
-		DoubleDown: "Falling fast",
-		NotComputable: "Unknown",
-		RateOutOfRange: "Out of range",
-	};
-
-	const text = $derived.by(() => {
-		if (value === null) return "--";
-		return LABELS[value.direction] ?? value.direction;
-	});
+	const info = $derived(value === null ? null : getDirectionInfo(value.direction));
 </script>
 
 <span
@@ -29,5 +16,11 @@
 	data-testid="direction"
 	data-direction={value?.direction ?? "none"}
 >
-	<span>{text}</span>
+	{#if info}
+		{@const Icon = info.icon}
+		<Icon class={`size-3 ${info.css}`} aria-hidden="true" />
+		<span>{info.label}</span>
+	{:else}
+		<span>--</span>
+	{/if}
 </span>
