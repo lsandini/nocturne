@@ -87,6 +87,11 @@ describe("HistoryRing", () => {
 		expect(distances.some((dist) => dist > RING_RADIUS + 0.5)).toBe(
 			true,
 		);
+		// Oldest vertex (rendered first) sits at RING_RADIUS + SPIRAL_MAX_OUTGROW_PX;
+		// newest (rendered last) sits at RING_RADIUS — so radii decrease monotonically toward the newest.
+		expect(distances[0]).toBeGreaterThan(
+			distances[distances.length - 1],
+		);
 	});
 
 	it("renders nothing when historyValues is empty", () => {

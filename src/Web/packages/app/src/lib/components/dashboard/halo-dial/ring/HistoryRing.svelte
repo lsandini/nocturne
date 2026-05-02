@@ -1,8 +1,11 @@
-<!-- Fallback to <path> due to no polar Chart context yet — revisit when HaloDial is wired in Task 4.8. -->
 <script lang="ts">
+	// Fallback to <path> due to no polar Chart context yet — revisit when HaloDial is wired in Task 4.8.
 	import { RING_RADIUS, polar, historyVertices } from "../geometry";
 	import { bgColor } from "../colors";
 	import type { HaloDialColorMode } from "../config";
+
+	// Linear gradient from oldest → newest vertex is an approximation; per-vertex Spline coloring
+	// will land when HaloDial wires the polar <Chart> in Task 4.8.
 
 	interface Props {
 		historyValues: number[];
@@ -51,6 +54,8 @@
 			if (spiralActive) {
 				// Radius changes between vertices — straight segments approximate
 				// the Archimedean spiral well enough at typical resolutions.
+				// Assumes ≥1 vertex per ~5° of arc (typical: 1 reading per 5min × 6°/min = 1 per 30°, well dense enough).
+				// If sampling density drops, switch to per-segment cubic Bézier with control points along the radial.
 				d += ` L ${p.x.toFixed(3)} ${p.y.toFixed(3)}`;
 			} else {
 				// Pure circular arc on the ring; sweep CCW (sweep-flag = 0).
