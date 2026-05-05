@@ -209,7 +209,10 @@
             }
           }
         },
-        "x-remote-type": "command"
+        "x-remote-type": "command",
+        "x-remote-invalidates": [
+          "GetAll"
+        ]
       }
     },
     "/api/v4/connectors/status": {
