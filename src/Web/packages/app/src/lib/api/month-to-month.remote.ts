@@ -99,6 +99,19 @@ export const getPunchCardData = query(
       }
     >();
 
+    // First pass: split inputs by day. No I/O — just filtering already-fetched arrays
+    // into per-day buckets. Days are processed in chronological order so the resulting
+    // months map preserves the original ordering even though API calls run in parallel.
+    type DayInput = {
+      date: string;
+      timestamp: number;
+      monthKey: string;
+      dayEntries: typeof allEntries;
+      dayBoluses: typeof allBoluses;
+      dayCarbs: typeof allCarbs;
+    };
+    const dayInputs: DayInput[] = [];
+
     const currentDate = new Date(startDate);
     currentDate.setHours(0, 0, 0, 0);
 
@@ -125,36 +138,55 @@ export const getPunchCardData = query(
       dayStart.setHours(0, 0, 0, 0);
       const dayEnd = new Date(currentDate);
       dayEnd.setHours(23, 59, 59, 999);
+      const dayStartMs = dayStart.getTime();
+      const dayEndMs = dayEnd.getTime();
 
-      const dayEntries = allEntries.filter((e) => {
-        const entryTime = e.mills ?? 0;
-        return entryTime >= dayStart.getTime() && entryTime <= dayEnd.getTime();
+      dayInputs.push({
+        date: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`,
+        timestamp: dayStartMs,
+        monthKey,
+        dayEntries: allEntries.filter((e) => {
+          const t = e.mills ?? 0;
+          return t >= dayStartMs && t <= dayEndMs;
+        }),
+        dayBoluses: allBoluses.filter((b) => {
+          const t = b.mills ?? 0;
+          return t >= dayStartMs && t <= dayEndMs;
+        }),
+        dayCarbs: allCarbs.filter((c) => {
+          const t = c.mills ?? 0;
+          return t >= dayStartMs && t <= dayEndMs;
+        }),
       });
 
-      const dayBoluses = allBoluses.filter((b) => {
-        const bolusTime = b.mills ?? 0;
-        return bolusTime >= dayStart.getTime() && bolusTime <= dayEnd.getTime();
-      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
 
-      const dayCarbs = allCarbs.filter((c) => {
-        const carbTime = c.mills ?? 0;
-        return carbTime >= dayStart.getTime() && carbTime <= dayEnd.getTime();
-      });
+    // Second pass: compute per-day metrics in parallel. The `calculateTimeInRange` and
+    // `calculateTreatmentSummary` endpoints are pure math (no DB), so this batch is safe
+    // to run concurrently. Drops a 31-day month from ~62 sequential round-trips to one
+    // parallel batch.
+    const dayResults = await Promise.all(
+      dayInputs.map(async (input) => {
+        const [tirMetrics, treatmentSummary] = await Promise.all([
+          input.dayEntries.length > 0
+            ? apiClient.statistics.calculateTimeInRange({
+                entries: input.dayEntries,
+              })
+            : null,
+          input.dayBoluses.length > 0 || input.dayCarbs.length > 0
+            ? apiClient.statistics.calculateTreatmentSummary({
+                boluses: input.dayBoluses,
+                carbIntakes: input.dayCarbs,
+              })
+            : null,
+        ]);
+        return { input, tirMetrics, treatmentSummary };
+      })
+    );
 
-      let tirMetrics = null;
-      let treatmentSummary = null;
-
-      if (dayEntries.length > 0) {
-        tirMetrics = await apiClient.statistics.calculateTimeInRange({
-          entries: dayEntries,
-        });
-      }
-      if (dayBoluses.length > 0 || dayCarbs.length > 0) {
-        treatmentSummary = await apiClient.statistics.calculateTreatmentSummary(
-          { boluses: dayBoluses, carbIntakes: dayCarbs }
-        );
-      }
-
+    // Third pass: assemble per-month data in original chronological order.
+    for (const { input, tirMetrics, treatmentSummary } of dayResults) {
       const percentages = tirMetrics?.percentages;
       const inRangePercent = percentages?.target ?? 0;
       const lowPercent = (percentages?.veryLow ?? 0) + (percentages?.low ?? 0);
@@ -178,25 +210,22 @@ export const getPunchCardData = query(
       const averageGlucose =
         rangeStats?.target?.mean ?? rangeStats?.low?.mean ?? 0;
 
-      const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
-
       const totals = treatmentSummary?.totals;
       const totalCarbs = totals?.food?.carbs ?? 0;
       const totalBolus = totals?.insulin?.bolus ?? 0;
-      const totalBasal = dailyBasalMap.get(dateStr) ?? 0;
+      const totalBasal = dailyBasalMap.get(input.date) ?? 0;
       const totalInsulin = totalBolus + totalBasal;
 
       const carbToInsulinRatio = treatmentSummary?.carbToInsulinRatio ?? 0;
 
-      // Extract raw glucose entries for profile view (sorted by time)
-      const entries = dayEntries
+      const entries = input.dayEntries
         .filter((e) => e.mills != null && e.mgdl != null)
         .map((e) => ({ mills: e.mills!, mgdl: e.mgdl! }))
         .sort((a, b) => a.mills - b.mills);
 
       const dayStats = {
-        date: dateStr,
-        timestamp: dayStart.getTime(),
+        date: input.date,
+        timestamp: input.timestamp,
         totalReadings,
         inRangeCount,
         lowCount,
@@ -213,7 +242,7 @@ export const getPunchCardData = query(
         entries,
       };
 
-      const monthData = monthsMap.get(monthKey)!;
+      const monthData = monthsMap.get(input.monthKey)!;
       monthData.days.push(dayStats);
       monthData.maxCarbs = Math.max(monthData.maxCarbs, dayStats.totalCarbs);
       monthData.maxInsulin = Math.max(
@@ -225,8 +254,6 @@ export const getPunchCardData = query(
         Math.abs(dayStats.carbToInsulinRatio)
       );
       monthData.totalReadings += dayStats.totalReadings;
-
-      currentDate.setDate(currentDate.getDate() + 1);
     }
 
     const months = Array.from(monthsMap.values()).sort((a, b) => {
