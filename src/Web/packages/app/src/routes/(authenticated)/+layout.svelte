@@ -13,6 +13,7 @@
   import type { TitleFaviconSettings } from "$lib/stores/serverSettings";
   import { browser } from "$app/environment";
   import * as Card from "$lib/components/ui/card";
+  import { Button } from "$lib/components/ui/button";
   import AlertBanner from "$lib/components/alerts/AlertBanner.svelte";
   import FiringToast from "$lib/components/alerts/FiringToast.svelte";
   import GuestBanner from "$lib/components/layout/GuestBanner.svelte";
@@ -207,15 +208,33 @@
         <svelte:boundary>
           {@render children()}
 
-          {#snippet failed(e)}
-            <Card.Root class="flex items-center justify-center h-full">
+          {#snippet failed(e, reset)}
+            {@const errorId = crypto.randomUUID()}
+            {@const message = e instanceof Error ? e.message : typeof e === 'string' ? e : 'An unexpected error occurred'}
+            {@const stack = e instanceof Error ? e.stack : undefined}
+            {(() => {
+              console.error(`Error ID: ${errorId}`, e);
+              fetch('/api/otel/errors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, stack, url: window.location.href, errorId }),
+              }).catch(() => {});
+              return '';
+            })()}
+            <Card.Root class="mx-auto mt-10 max-w-2xl">
               <Card.Header>
-                <Card.Title>Error</Card.Title>
+                <Card.Title>Something went wrong</Card.Title>
               </Card.Header>
-              <Card.Content
-                class="text-destructive grid place-items-center h-full max-w-2xl"
-              >
-                {e instanceof Error ? e.message : JSON.stringify(e)}
+              <Card.Content class="space-y-4">
+                <p class="text-destructive">{message}</p>
+                {#if stack}
+                  <pre class="max-h-48 overflow-auto rounded bg-muted p-3 text-xs text-muted-foreground">{stack}</pre>
+                {/if}
+                <p class="text-xs text-muted-foreground">Error ID: {errorId}</p>
+                <div class="flex gap-2">
+                  <Button variant="outline" onclick={reset}>Retry</Button>
+                  <Button variant="ghost" href="/">Go home</Button>
+                </div>
               </Card.Content>
             </Card.Root>
           {/snippet}
