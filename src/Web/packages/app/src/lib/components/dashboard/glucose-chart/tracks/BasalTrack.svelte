@@ -10,70 +10,36 @@
     AnnotationRange,
     AnnotationLine,
     AnnotationPoint,
+    getChartContext,
   } from "layerchart";
   import { curveStepAfter } from "d3";
-  import type { ScaleLinear } from "d3-scale";
   import { BasalDeliveryOrigin } from "$lib/api";
-
-  interface BasalDataPoint {
-    timestamp?: number;
-    rate?: number;
-    scheduledRate?: number;
-    origin?: BasalDeliveryOrigin;
-    fillColor: string;
-    strokeColor: string;
-  }
-
-  interface TempBasalSpan {
-    id?: string;
-    displayStart: Date;
-    displayEnd: Date;
-    color: string;
-    rate: number | null;
-    percent: number | null;
-  }
-
-  interface StaleBasalData {
-    start: Date;
-    end: Date;
-  }
+  import { getGlucoseChartContext } from "../chart-context.svelte";
 
   interface Props {
-    basalData: BasalDataPoint[];
-    scheduledBasalData: { timestamp?: number; rate?: number }[];
-    tempBasalSpans: TempBasalSpan[];
-    staleBasalData: StaleBasalData | null;
-    maxBasalRate: number;
-    basalScale: (rate: number) => number;
-    basalZero: number;
-    basalTrackTop: number;
-    basalAxisScale: ScaleLinear<number, number>;
-    context: {
-      xScale: (time: Date) => number;
-      yScale: (value: number) => number;
-    };
-    showBasal: boolean;
     onPointClick?: (time: Date) => void;
   }
 
-  let {
-    basalData,
-    scheduledBasalData,
-    tempBasalSpans,
-    staleBasalData,
-    maxBasalRate,
-    basalScale,
-    basalZero,
-    basalTrackTop,
-    basalAxisScale,
-    context,
-    showBasal,
-    onPointClick,
-  }: Props = $props();
+  let { onPointClick }: Props = $props();
+
+  const ctx = getGlucoseChartContext();
+  const chartCtx = getChartContext();
+
+  const basalData = $derived(ctx.engine.basalData);
+  const scheduledBasalData = $derived(ctx.engine.scheduledBasalData);
+  const tempBasalSpans = $derived(ctx.engine.displayTempBasalSpans);
+  const staleBasalData = $derived(ctx.engine.staleBasalData);
+  const maxBasalRate = $derived(ctx.engine.maxBasalRate);
+  const basalLayout = $derived(ctx.layout.basal);
+
+  const effectiveOnPointClick = $derived(
+    onPointClick ?? ((time: Date) => ctx.inspection?.inspectFromTrack(time))
+  );
 
   // Group consecutive basal points by origin for proper layered rendering
   // This ensures each origin type (Scheduled, Algorithm, Manual, Suspended) is rendered as a distinct segment
   const basalSegmentsByOrigin = $derived.by(() => {
+    type BasalDataPoint = (typeof basalData)[number];
     type Segment = { origin: BasalDeliveryOrigin; points: BasalDataPoint[] };
     const segments: Segment[] = [];
     let currentSegment: Segment | null = null;
@@ -143,7 +109,12 @@
   }
 </script>
 
-{#if showBasal}
+{#if basalLayout}
+  {@const basalScale = basalLayout.scale}
+  {@const basalZero = basalLayout.zero}
+  {@const basalTrackTop = basalLayout.top}
+  {@const basalAxisScale = basalLayout.axisScale}
+
   <ChartClipPath>
     <!-- Temp basal span indicators (shown in basal track when basal is visible) -->
     {#each tempBasalSpans as span (span.id)}
@@ -156,8 +127,8 @@
       <!-- Show temp basal rate label -->
       {#if span.rate !== null}
         <Group
-          x={context.xScale(span.displayStart)}
-          y={context.yScale(basalScale(maxBasalRate * 0.8))}
+          x={chartCtx.xScale(span.displayStart)}
+          y={chartCtx.yScale(basalScale(maxBasalRate * 0.8))}
         >
           <Text x={4} y={0} class="text-[7px] fill-insulin-basal font-medium">
             {span.rate.toFixed(2)}U/h
@@ -165,8 +136,8 @@
         </Group>
       {:else if span.percent !== null}
         <Group
-          x={context.xScale(span.displayStart)}
-          y={context.yScale(basalScale(maxBasalRate * 0.8))}
+          x={chartCtx.xScale(span.displayStart)}
+          y={chartCtx.yScale(basalScale(maxBasalRate * 0.8))}
         >
           <Text x={4} y={0} class="text-[7px] fill-insulin-basal font-medium">
             {span.percent}%
@@ -246,7 +217,7 @@
       {@const strokeColor = segment.points[0].strokeColor}
       {#if pattern}
         <!-- Use AnnotationRange for segments with patterns (Inferred) -->
-        {#each segment.points as point, pointIdx}
+        {#each segment.points as point, pointIdx (point.timestamp)}
           {#if pointIdx < segment.points.length - 1}
             {@const nextPoint = segment.points[pointIdx + 1]}
             <AnnotationRange
@@ -281,7 +252,7 @@
       x={(d) => d.time}
       y={(d) => {
         const timeMs = d.time.getTime();
-        let nearest: BasalDataPoint | undefined;
+        let nearest: (typeof basalData)[number] | undefined;
         for (let i = basalData.length - 1; i >= 0; i--) {
           if ((basalData[i].timestamp ?? 0) <= timeMs) {
             nearest = basalData[i];
@@ -292,8 +263,8 @@
         return basalScale(nearest.rate);
       }}
       points={{ class: "fill-iob-basal" }}
-      onPointClick={onPointClick
-        ? (_e, { data }) => onPointClick(data.time)
+      onPointClick={effectiveOnPointClick
+        ? (_e, { data }) => effectiveOnPointClick(data.time)
         : undefined}
     />
   </ChartClipPath>
