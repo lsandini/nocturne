@@ -100,7 +100,9 @@
       {(chartHeight = context.height, chartWidth = context.width, "")}
 
       <Svg>
-        {@render tracks(ctx)}
+        {#if chartHeight > 0}
+          {@render tracks(ctx)}
+        {/if}
 
         <Axis
           placement="bottom"
