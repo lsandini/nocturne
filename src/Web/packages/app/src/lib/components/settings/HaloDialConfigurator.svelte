@@ -28,8 +28,14 @@
 
   let { value, onchange }: Props = $props();
 
+  const DISPLAY_OVERRIDES: Record<string, string> = {
+    Iob: "IOB",
+    Cob: "COB",
+    Uam: "UAM",
+  };
+
   function humanize(s: string): string {
-    return s.replace(/([a-z])([A-Z])/g, "$1 $2");
+    return DISPLAY_OVERRIDES[s] ?? s.replace(/([a-z])([A-Z])/g, "$1 $2");
   }
 
   function update(patch: Partial<HaloDialConfig>) {
@@ -225,13 +231,13 @@
           <Label>IOB max units</Label>
           <Input
             type="number"
+            min={1}
+            step={0.5}
             value={value.iobMaxUnits}
-            oninput={(e) =>
-              update({
-                iobMaxUnits: Number(
-                  (e.currentTarget as HTMLInputElement).value,
-                ),
-              })}
+            oninput={(e) => {
+              const n = Number((e.currentTarget as HTMLInputElement).value);
+              if (n > 0) update({ iobMaxUnits: n });
+            }}
           />
         </div>
       {/if}
@@ -241,13 +247,13 @@
           <Label>COB max grams</Label>
           <Input
             type="number"
+            min={1}
+            step={5}
             value={value.cobMaxGrams}
-            oninput={(e) =>
-              update({
-                cobMaxGrams: Number(
-                  (e.currentTarget as HTMLInputElement).value,
-                ),
-              })}
+            oninput={(e) => {
+              const n = Number((e.currentTarget as HTMLInputElement).value);
+              if (n > 0) update({ cobMaxGrams: n });
+            }}
           />
         </div>
       {/if}
