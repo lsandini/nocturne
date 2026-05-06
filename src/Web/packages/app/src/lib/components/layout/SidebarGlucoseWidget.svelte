@@ -20,6 +20,15 @@
   // svelte-ignore state_referenced_locally
   const sidebarEngine = createChartDataEngine({ enablePredictions: false, focusHours: 3 });
 
+  // Glucose-only layout — no space reserved for basal/IOB/swim lanes
+  const sidebarLegend = {
+    iob: false, cob: false, basal: false, bolus: false, carbs: false,
+    deviceEvents: false, alarms: false, scheduledTrackers: false,
+    overrideSpans: false, profileSpans: false, activitySpans: false,
+    pumpModes: false, expandedPumpModes: false,
+    toggle() {},
+  };
+
   // Collapsed state needs basic BG info
   const rawCurrentBG = $derived(realtimeStore?.currentBG ?? 0);
   const lastUpdated = $derived(realtimeStore?.lastUpdated ?? 0);
@@ -43,7 +52,7 @@
     </div>
   {:else}
     <div class="px-2">
-      <GlucoseChartShell engine={sidebarEngine} heightClass="h-[200px]">
+      <GlucoseChartShell engine={sidebarEngine} legend={sidebarLegend} heightClass="h-[200px]">
         {#snippet tracks(_ctx)}
           <ThresholdRules />
           <GlucoseTrack />
