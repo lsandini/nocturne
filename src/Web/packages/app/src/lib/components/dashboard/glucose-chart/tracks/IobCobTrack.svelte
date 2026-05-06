@@ -28,6 +28,18 @@
   const showBolus = $derived(ctx.legend?.bolus ?? true);
   const showCarbs = $derived(ctx.legend?.carbs ?? true);
 
+  $inspect("IobCobTrack", {
+    hasLayout: !!iobCobLayout,
+    iobLen: iobData.length,
+    cobLen: cobData.length,
+    bolusLen: bolusMarkers.length,
+    carbLen: carbMarkers.length,
+    showIob,
+    showCob,
+    showBolus,
+    showCarbs,
+  });
+
   const effectiveOnPointClick = $derived(
     onPointClick ?? ((time: Date) => ctx.inspection?.inspectFromTrack(time))
   );

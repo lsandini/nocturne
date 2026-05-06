@@ -17,6 +17,7 @@
     padding?: { left: number; right: number; top: number; bottom: number };
     selectionDomain?: [Date, Date] | null;
     onSelectionChange?: (domain: [Date, Date] | null) => void;
+    showTimeAxis?: boolean;
     tracks: Snippet<[GlucoseChartContext]>;
   }
 
@@ -29,6 +30,7 @@
     padding = { left: 48, bottom: 30, top: 8, right: 48 },
     selectionDomain,
     onSelectionChange,
+    showTimeAxis = true,
     tracks,
   }: Props = $props();
 
@@ -104,11 +106,13 @@
           {@render tracks(ctx)}
         {/if}
 
-        <Axis
-          placement="bottom"
-          format="hour"
-          tickLabelProps={{ class: "text-xs fill-muted-foreground" }}
-        />
+        {#if showTimeAxis}
+          <Axis
+            placement="bottom"
+            format="hour"
+            tickLabelProps={{ class: "text-xs fill-muted-foreground" }}
+          />
+        {/if}
       </Svg>
 
       {#if onSelectionChange}
