@@ -579,6 +579,8 @@
                   <GlucoseTrack />
                   <IobCobTrack />
                   <ReplayOverlay {firedMarkers} {currentDate} />
+                {/snippet}
+                {#snippet overlays(_ctx)}
                   <ChartTooltip tooltipExtras={replayTooltipExtras} />
                 {/snippet}
               </GlucoseChartShell>

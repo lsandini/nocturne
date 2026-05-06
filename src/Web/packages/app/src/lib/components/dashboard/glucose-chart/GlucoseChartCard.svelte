@@ -341,6 +341,8 @@
           <SystemEventMarkers />
           <TrackerMarkers />
           <ChartHighlight />
+        {/snippet}
+        {#snippet overlays(_ctx)}
           <ChartTooltip />
         {/snippet}
       </GlucoseChartShell>

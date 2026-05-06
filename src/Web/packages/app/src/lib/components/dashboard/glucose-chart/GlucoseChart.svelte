@@ -224,6 +224,8 @@
     <TrackerMarkers />
     {@render annotations?.(ctx)}
     <ChartHighlight />
+  {/snippet}
+  {#snippet overlays(_ctx)}
     <ChartTooltip {tooltipExtras} />
   {/snippet}
 </GlucoseChartShell>
