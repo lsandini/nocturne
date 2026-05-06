@@ -2,9 +2,14 @@
   import { tryGetRealtimeStore } from "$lib/stores/realtime-store.svelte";
   import { STALE_THRESHOLD_MS } from "$lib/constants/staleness";
   import { formatGlucoseValue } from "$lib/utils/formatting";
-  import { glucoseUnits } from "$lib/stores/appearance-store.svelte";
+  import {
+    glucoseUnits,
+    sidebarWidget,
+    haloDialConfig,
+  } from "$lib/stores/appearance-store.svelte";
   import { GlucoseValueIndicator } from "$lib/components/shared";
   import HaloDial from "$lib/components/dashboard/halo-dial/HaloDial.svelte";
+  import GlucoseChartCard from "$lib/components/dashboard/glucose-chart/GlucoseChartCard.svelte";
 
   const realtimeStore = tryGetRealtimeStore();
 
@@ -20,11 +25,20 @@
   );
   const units = $derived(glucoseUnits.current);
   const displayBG = $derived(formatGlucoseValue(rawCurrentBG, units));
+  const widget = $derived(sidebarWidget.current);
 </script>
 
-<!-- Expanded state: full HaloDial -->
-<div class="flex justify-center group-data-[collapsible=icon]:hidden">
-  <HaloDial />
+<!-- Expanded state: widget based on preference -->
+<div class="group-data-[collapsible=icon]:hidden">
+  {#if widget === "halo-dial"}
+    <div class="flex justify-center">
+      <HaloDial configOverride={haloDialConfig.current} />
+    </div>
+  {:else}
+    <div class="px-2">
+      <GlucoseChartCard compact heightClass="h-[200px]" />
+    </div>
+  {/if}
 </div>
 
 <!-- Collapsed state: just show current BG -->
