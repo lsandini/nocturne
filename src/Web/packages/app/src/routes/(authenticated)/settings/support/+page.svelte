@@ -32,7 +32,7 @@
     CreditCard,
     GraduationCap,
   } from "lucide-svelte";
-  import { getServicesOverview } from "$api";
+  import { getServicesOverview } from "$api/generated/services.generated.remote";
   import type { ServicesOverview, SupportConfigResponse } from "$api";
   import { getSupportConfig } from "$lib/api/support.remote";
   import IssueCreatorDialog from "$lib/components/support/IssueCreatorDialog.svelte";
