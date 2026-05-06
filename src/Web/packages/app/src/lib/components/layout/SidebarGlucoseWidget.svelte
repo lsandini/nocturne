@@ -9,9 +9,16 @@
   } from "$lib/stores/appearance-store.svelte";
   import { GlucoseValueIndicator } from "$lib/components/shared";
   import HaloDial from "$lib/components/dashboard/halo-dial/HaloDial.svelte";
-  import GlucoseChartCard from "$lib/components/dashboard/glucose-chart/GlucoseChartCard.svelte";
+  import { createChartDataEngine } from "$lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte";
+  import GlucoseChartShell from "$lib/components/dashboard/glucose-chart/GlucoseChartShell.svelte";
+  import GlucoseTrack from "$lib/components/dashboard/glucose-chart/tracks/GlucoseTrack.svelte";
+  import ThresholdRules from "$lib/components/dashboard/glucose-chart/tracks/ThresholdRules.svelte";
 
   const realtimeStore = tryGetRealtimeStore();
+
+  // Engine for the sidebar chart — no predictions, no inspection
+  // svelte-ignore state_referenced_locally
+  const sidebarEngine = createChartDataEngine({ enablePredictions: false });
 
   // Collapsed state needs basic BG info
   const rawCurrentBG = $derived(realtimeStore?.currentBG ?? 0);
@@ -36,7 +43,12 @@
     </div>
   {:else}
     <div class="px-2">
-      <GlucoseChartCard compact heightClass="h-[200px]" />
+      <GlucoseChartShell engine={sidebarEngine} heightClass="h-[200px]">
+        {#snippet tracks(_ctx)}
+          <ThresholdRules />
+          <GlucoseTrack />
+        {/snippet}
+      </GlucoseChartShell>
     </div>
   {/if}
 </div>
