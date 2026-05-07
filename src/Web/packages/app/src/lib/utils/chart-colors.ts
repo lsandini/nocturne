@@ -13,12 +13,23 @@ export function resolveChartColor(color: ChartColor | string): string {
 }
 
 /**
+ * Glucose threshold boundaries in mg/dL, defining the four cut-points between
+ * the five discrete colour buckets (very-low / low / in-range / high / very-high).
+ */
+export interface GlucoseThresholds {
+	low: number;
+	high: number;
+	veryLow: number;
+	veryHigh: number;
+}
+
+/**
  * Get glucose color based on mg/dL value and thresholds
  * This stays on the frontend as it's a display concern (threshold-based coloring per point)
  */
 export function getGlucoseColor(
 	sgvMgdl: number,
-	thresholds: { low: number; high: number; veryLow: number; veryHigh: number }
+	thresholds: GlucoseThresholds
 ): string {
 	if (sgvMgdl < thresholds.veryLow) return 'var(--glucose-very-low)';
 	if (sgvMgdl < thresholds.low) return 'var(--glucose-low)';
@@ -93,11 +104,14 @@ export function getGlucoseColorContinuous(mgdl: number): string {
 	return `oklch(${l.toFixed(3)} ${c.toFixed(3)} ${h.toFixed(2)})`;
 }
 
-/** Discrete or continuous glucose colour, depending on mode. */
+/**
+ * Resolve a glucose colour by mode. Threshold mode returns a `var(--glucose-*)`
+ * CSS variable reference; continuous mode returns an `oklch(...)` string.
+ */
 export function getGlucoseColorByMode(
 	mgdl: number,
-	mode: 'discrete' | 'continuous',
-	thresholds: { low: number; high: number; veryLow: number; veryHigh: number }
+	mode: Exclude<GlucoseColorMode, 'single'>,
+	thresholds: GlucoseThresholds
 ): string {
 	return mode === 'continuous'
 		? getGlucoseColorContinuous(mgdl)
