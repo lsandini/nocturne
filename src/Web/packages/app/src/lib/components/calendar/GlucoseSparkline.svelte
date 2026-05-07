@@ -15,9 +15,9 @@
   import GlucoseTrack from "$lib/components/dashboard/glucose-chart/tracks/GlucoseTrack.svelte";
   import type { ChartDataEngine } from "$lib/components/dashboard/glucose-chart/engine/chart-data-engine.svelte";
 
-  // Calendar-specific thresholds — preserve the legacy sparkline values.
-  // veryLow/veryHigh are needed by GlucoseTrack's threshold gradient even
-  // though the original sparkline only used low/high.
+  // Calendar receives raw entries without threshold context. Defaults: legacy
+  // sparkline values for low/high (70/180), ADA-style boundaries for veryLow/veryHigh.
+  // If we ever pass per-tenant thresholds down to the calendar, replace this.
   const THRESHOLDS = {
     low: 70,
     high: 180,
@@ -57,9 +57,10 @@
 
   let chartHeight = $state(0);
 
-  // Minimal stub of ChartDataEngine — GlucoseTrack only reads `glucoseData`
-  // and `thresholds`. The cast intentionally fails if GlucoseTrack starts
-  // touching new engine fields.
+  // Intentional escape hatch — engineStub doesn't satisfy the full ChartDataEngine
+  // surface. GlucoseTrack only reads `glucoseData` and `thresholds`. If GlucoseTrack
+  // starts touching more fields, this cast won't catch it; either widen the stub
+  // or refactor GlucoseTrack to declare a narrower context type.
   const engineStub = {
     get glucoseData() {
       return glucoseData;
