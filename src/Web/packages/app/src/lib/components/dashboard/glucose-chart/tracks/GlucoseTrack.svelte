@@ -26,6 +26,26 @@
   type LineColorMode = "single" | "threshold" | "continuous";
   type AreaMode = "off" | "baseline" | "deviation";
 
+  /**
+   * GlucoseTrack renders the glucose line/area/points layer of a chart.
+   *
+   * Customisation is composable across four feature axes:
+   *   - `lineColorMode` (default `"threshold"`): line strokes by glucose
+   *     bucket (very-low/low/in-range/high/very-high) unless overridden to
+   *     `"single"` (flat `lineColor`) or `"continuous"` (oklch spectrum).
+   *     The threshold default applies to every consumer that doesn't pass
+   *     the prop explicitly; callers wanting the previous in-range green
+   *     line must opt in via `lineColorMode="single"`.
+   *   - `areaMode` (default `"off"`): adds a filled area below the line
+   *     extending to the chart bottom (`"baseline"`) or only where the
+   *     line deviates outside `[low, high]` (`"deviation"`).
+   *   - Points (`showPoints` / `pointColorMode` / `pointColor`): mirror
+   *     the line by default, but can diverge. Passing `pointColor` alone
+   *     (without `pointColorMode`) implicitly switches points to
+   *     `"single"` mode using that colour.
+   *   - `areaOpacity` (default 0.5): top of the vertical opacity fade;
+   *     the fill always fades to transparent at the chart bottom.
+   */
   interface Props {
     showAxis?: boolean;
     showPoints?: boolean;

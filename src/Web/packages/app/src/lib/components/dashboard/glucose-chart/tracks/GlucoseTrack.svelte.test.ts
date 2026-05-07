@@ -91,6 +91,25 @@ describe("GlucoseTrack rendering contract", () => {
 		expect(circles.length).toBe(0);
 	});
 
+	it("uses pointColor as a single-colour override when pointColorMode is omitted", async () => {
+		// Locks DWIM behaviour in `effectivePointMode`: passing `pointColor`
+		// without `pointColorMode` flips points to "single" mode so the
+		// explicit colour is actually used (otherwise it would fall through
+		// to threshold/continuous and silently ignore `pointColor`).
+		const { container } = render(Harness, {
+			lineColorMode: "threshold",
+			areaMode: "off",
+			showPoints: true,
+			pointColor: "rgb(100, 150, 200)",
+		});
+
+		const circles = Array.from(container.querySelectorAll("circle"));
+		expect(circles.length).toBeGreaterThanOrEqual(3);
+		for (const c of circles) {
+			expect(c.getAttribute("fill")).toBe("rgb(100, 150, 200)");
+		}
+	});
+
 	it("renders points when showPoints is explicitly true", async () => {
 		// Guards against an inverted-boolean regression in
 		// effectiveShowPoints' density fallback (`showPoints ?? density < 0.5`).
