@@ -5,7 +5,7 @@
   import { ArrowRight, ArrowLeft, Sprout, Cable, ShieldAlert } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { markSetupComplete } from "./setup.remote";
-  import AppLogo from "$lib/components/AppLogo.svelte";
+  import AppLogo from "$lib/components/ui/AppLogo.svelte";
   import * as migrationRemote from "$api/generated/migrations.generated.remote";
   import {
     getServicesOverview,
