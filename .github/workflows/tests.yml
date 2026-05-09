@@ -55,7 +55,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -78,12 +78,16 @@ jobs:
         with:
           path: ~/.pnpm-store
           key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+      - name: Install web dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: src/Web
+      - name: Build E2E project
+        run: dotnet build tests/E2E/Nocturne.E2E.Tests/Nocturne.E2E.Tests.csproj -p:GenerateNSwagClient=false
       - name: Test E2E
         run: |
-          dotnet test tests/E2E/Nocturne.E2E.Tests/Nocturne.E2E.Tests.csproj \
+          dotnet test tests/E2E/Nocturne.E2E.Tests/Nocturne.E2E.Tests.csproj --no-build \
             --filter "Category=E2E" \
-            --logger "trx;LogFileName=e2e.trx" \
-            -p:GenerateNSwagClient=false
+            --logger "trx;LogFileName=e2e.trx"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
