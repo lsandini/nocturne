@@ -231,7 +231,7 @@
                 totalEntries: dataSource?.totalEntries ?? 0,
                 lastEntryTime: dataSource?.lastSeen,
                 entriesLast24Hours: dataSource?.entriesLast24h ?? 0,
-                state: isDisabled ? "Disabled" : "Offline",
+                state: connectorStatusInfo?.state ?? (isDisabled ? "Disabled" : "Offline"),
                 isHealthy: false,
                 isEnabled: connectorStatusInfo?.isEnabled,
                 hasDatabaseConfig: connectorStatusInfo?.hasDatabaseConfig,

@@ -19,15 +19,11 @@
     Wrench,
   } from "lucide-svelte";
   import type {
-    ConnectorStatusDto,
     ConnectorCapabilities,
     SyncRequest,
     SyncResult,
   } from "$lib/api/generated/nocturne-api-client";
-
-  interface ConnectorStatusWithDescription extends ConnectorStatusDto {
-    description?: string;
-  }
+  import type { ConnectorStatusWithDescription } from "./ServerConnectorsCard.svelte";
 
   let {
     open = $bindable(false),
