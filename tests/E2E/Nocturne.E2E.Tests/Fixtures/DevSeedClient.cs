@@ -22,7 +22,12 @@ public sealed class DevSeedClient
             displayName = $"E2E {slug}",
             ownerUsername = username
         });
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException(
+                $"seed-tenant returned {response.StatusCode}: {errorBody}");
+        }
 
         var body = await response.Content.ReadFromJsonAsync<SeedTenantResponse>()
             ?? throw new InvalidOperationException("seed-tenant returned null body");
