@@ -25,6 +25,9 @@
     <ProjectReference Include="..\..\..\src\Aspire\Nocturne.Aspire.Host\Nocturne.Aspire.Host.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="Fixtures\Nightscout\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
