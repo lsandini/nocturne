@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 using Nocturne.API.Extensions;
 using Nocturne.API.Middleware;
 using Nocturne.API.Services.Devices;
+using Nocturne.Core.Contracts.Identity;
 using Nocturne.Connectors.Core.Utilities;
 using Nocturne.Core.Constants;
 using Nocturne.Core.Contracts.Glucose;
