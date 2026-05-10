@@ -211,7 +211,6 @@ builder.Services.AddOpenApi("nocturne", options =>
             || ns == "Nocturne.API.Controllers";
     };
     options.AddOperationTransformer<SummaryToDescriptionOperationTransformer>();
-    options.AddOperationTransformer<FolderBasedTagOperationTransformer>();
     options.AddOperationTransformer<SecurityRequirementOperationTransformer>();
     options.AddDocumentTransformer<TagDescriptionDocumentTransformer>();
     options.AddDocumentTransformer<SecuritySchemeDocumentTransformer>();
@@ -233,7 +232,6 @@ builder.Services.AddOpenApi("nightscout", options =>
             || ns.EndsWith(".Controllers.V3", StringComparison.Ordinal);
     };
     options.AddOperationTransformer<SummaryToDescriptionOperationTransformer>();
-    options.AddOperationTransformer<FolderBasedTagOperationTransformer>();
     options.AddOperationTransformer<SecurityRequirementOperationTransformer>();
     options.AddDocumentTransformer<TagDescriptionDocumentTransformer>();
     options.AddDocumentTransformer<SecuritySchemeDocumentTransformer>();
