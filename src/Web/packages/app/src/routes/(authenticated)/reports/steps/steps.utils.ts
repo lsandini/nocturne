@@ -25,6 +25,10 @@ export function computeDayTotals(
  *
  * Finds the first day >= targetMs and returns its index, clamped so that
  * `visibleCount` rows always fit.
+ *
+ * @param targetMs - Must be a local midnight timestamp (e.g. `new Date(y, m, d).getTime()`).
+ *   Passing a UTC midnight value (`new Date('YYYY-MM-DD').getTime()`) may give off-by-one
+ *   results in UTC+ timezones.
  */
 export function computeInitialOffset(
   days: Date[],
