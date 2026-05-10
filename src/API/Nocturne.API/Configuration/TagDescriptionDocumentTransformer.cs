@@ -306,7 +306,7 @@ public sealed class TagDescriptionDocumentTransformer : IOpenApiDocumentTransfor
 
     private static Dictionary<string, List<DiagramRef>> BuildTagDiagramMap(IWebHostEnvironment env)
     {
-        var diagramsDir = Path.Combine(env.ContentRootPath, "..", "..", "..", "docs", "diagrams");
+        var diagramsDir = MermaidSourceLoader.ResolveDiagramsDir(env);
         var manifestPath = Path.Combine(diagramsDir, "diagrams.yaml");
         var map = new Dictionary<string, List<DiagramRef>>(StringComparer.Ordinal);
 
