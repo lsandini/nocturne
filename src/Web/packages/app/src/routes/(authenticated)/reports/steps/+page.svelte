@@ -25,10 +25,10 @@
 
   // Frozen at mount — does NOT react to reportsParams changes caused by actogram navigation.
   // This prevents a re-fetch every time the user scrolls the actogram.
-  let fetchRange = $state({
+  const fetchRange = {
     from: reportsParams.dateRangeMillis.from - PADDING_DAYS * MS_PER_DAY,
     to: reportsParams.dateRangeMillis.to + PADDING_DAYS * MS_PER_DAY,
-  });
+  };
 
   const actogramResource = contextResource(
     () =>
@@ -42,7 +42,6 @@
   const stepCounts = $derived(actogramResource.current?.stepCounts ?? []);
   const glucoseData = $derived(actogramResource.current?.glucoseData ?? []);
   const thresholds = $derived(actogramResource.current?.thresholds);
-  const dayTotals = $derived(computeDayTotals(stepCounts, days));
 
   // Build day array from date range
   const days = $derived.by(() => {
@@ -69,6 +68,8 @@
       return d;
     });
   });
+
+  const dayTotals = $derived(computeDayTotals(stepCounts, days));
 
   function formatDate(date: Date): string {
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -208,7 +209,7 @@
             <div class="text-right pr-2">
               <div class="text-xs text-muted-foreground">{formatDate(day)}</div>
               <div class="text-xs font-medium tabular-nums">
-                {(dayTotals.get(day.getTime()) ?? 0).toLocaleString()}
+                {(dayTotals.get(day.getTime()) ?? 0).toLocaleString()} <span class="text-muted-foreground font-normal">steps</span>
               </div>
             </div>
           {/snippet}
