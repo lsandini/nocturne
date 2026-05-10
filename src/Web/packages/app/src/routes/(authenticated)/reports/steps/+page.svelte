@@ -95,11 +95,23 @@
     glucoseData.map((g) => ({ mills: g.mills, sgv: g.sgv, color: g.color }))
   );
 
-  // Summary statistics
-  const totalSteps = $derived(
-    stepCounts.reduce((sum, s) => sum + s.metric, 0)
+  // Summary statistics scoped to the currently visible period (not the padded fetch window)
+  const visibleStepCounts = $derived(
+    stepCounts.filter(
+      (s) =>
+        s.mills >= reportsParams.dateRangeMillis.from &&
+        s.mills <= reportsParams.dateRangeMillis.to + MS_PER_DAY - 1
+    )
   );
-  const dayCount = $derived(days.length);
+  const totalSteps = $derived(visibleStepCounts.reduce((sum, s) => sum + s.metric, 0));
+  const dayCount = $derived(
+    reportsParams.from && reportsParams.to
+      ? Math.round(
+          (new Date(reportsParams.to).getTime() - new Date(reportsParams.from).getTime()) /
+            MS_PER_DAY
+        ) + 1
+      : VISIBLE_DAYS
+  );
   const dailyAverage = $derived(
     dayCount > 0 ? Math.round(totalSteps / dayCount) : 0
   );
