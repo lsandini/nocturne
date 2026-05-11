@@ -267,7 +267,8 @@
     $effect(() => { measureTextRect(); });
 </script>
 
-<div class="absolute inset-0 overflow-hidden" aria-hidden="true" bind:this={containerEl}>
+<div class="absolute inset-0 overflow-hidden" aria-hidden="true" bind:this={containerEl}
+     onpointermove={onPointerMove}>
 
     <!-- Mobile: static chip wrap (unchanged from original) -->
     <div class="md:hidden absolute top-16 left-0 right-0 px-5">
@@ -296,7 +297,6 @@
                    pointer-events-auto cursor-grab active:cursor-grabbing select-none touch-none"
             use:assignRef={i}
             onpointerdown={(e) => onPointerDown(e, i)}
-            onpointermove={onPointerMove}
             onpointerup={onPointerUp}
         >
             <img src="/logos/{def.file}" alt="" class="size-5 rounded object-cover" />
