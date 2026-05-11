@@ -7,7 +7,7 @@
 //
 // Requires: .NET 10 SDK, Aspire CLI
 
-#:package YamlDotNet@16.*
+#:package YamlDotNet
 
 using System.Diagnostics;
 using System.Text;
@@ -204,13 +204,21 @@ static void GenerateEnvExample(
         "BASE_DOMAIN",
     };
 
-    // Optional vars
+    // Optional vars (all bot integration config — leave blank if not using)
     var optional = new HashSet<string>
     {
         "DISCORD_BOT_TOKEN",
+        "DISCORD_APPLICATION_ID",
+        "DISCORD_CLIENT_SECRET",
+        "DISCORD_PUBLIC_KEY",
         "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_WEBHOOK_SECRET_TOKEN",
         "SLACK_BOT_TOKEN",
+        "SLACK_SIGNING_SECRET",
         "WHATSAPP_ACCESS_TOKEN",
+        "WHATSAPP_APP_SECRET",
+        "WHATSAPP_PHONE_NUMBER_ID",
+        "WHATSAPP_VERIFY_TOKEN",
     };
 
     using var writer = new StreamWriter(outputPath);
@@ -240,6 +248,10 @@ static void GenerateEnvExample(
             var name = line[..eqIndex];
 
             if (!seenVars.Add(name)) continue;
+
+            // Skip Aspire internal bind-mount placeholder vars — they're meaningless
+            // to users after the init script has been inlined via configs.content.
+            if (name.Contains("_BINDMOUNT_", StringComparison.OrdinalIgnoreCase)) continue;
 
             if (secrets.Contains(name))
                 secretVars.Add((name, ""));
