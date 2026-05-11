@@ -33,7 +33,7 @@
     GraduationCap,
   } from "lucide-svelte";
   import { getServicesOverview } from "$api/generated/services.generated.remote";
-  import { getStatus } from "$api/generated/statuses.generated.remote";
+  import { getStatus } from "$api/generated/status.generated.remote";
   import { getSupportConfig } from "$lib/api/support.remote";
   import IssueCreatorDialog from "$lib/components/support/IssueCreatorDialog.svelte";
   import { getCoachMarkContext } from "@nocturne/coach";
