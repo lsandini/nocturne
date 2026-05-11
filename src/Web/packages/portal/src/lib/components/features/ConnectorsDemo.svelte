@@ -92,11 +92,21 @@
         };
     });
 
+    function matches(c: Connector, q: string): boolean {
+        const lower = q.toLowerCase();
+        return (
+            c.name.toLowerCase().includes(lower) ||
+            c.kind.toLowerCase().includes(lower) ||
+            (c.aliases?.some(a => a.toLowerCase().includes(lower)) ?? false)
+        );
+    }
+
     let filtered = $derived(
-        query
-            ? CONNECTORS.filter(c => c.name.toLowerCase().includes(query.toLowerCase()))
-            : CONNECTORS
+        query ? CONNECTORS.filter(c => matches(c, query)) : CONNECTORS
     );
+
+    let activeMatches = $derived(filtered.filter(c => !c.comingSoon).length);
+    let comingSoonMatches = $derived(filtered.filter(c => c.comingSoon).length);
 </script>
 
 <div
