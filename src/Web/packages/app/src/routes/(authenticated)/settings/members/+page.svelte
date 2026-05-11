@@ -21,6 +21,7 @@
   import {
     setMemberRoles,
     setMemberPermissions,
+    setMemberLimitTo24Hours,
   } from "$lib/api/generated/memberInvites.generated.remote";
   import { coachmark } from "@nocturne/coach";
   import CreateInviteCard from "$lib/components/members/CreateInviteCard.svelte";
@@ -252,6 +253,12 @@
             onToggleExpand={() => toggleExpandMember(member.subjectId!)}
             onSaveRoles={(roleIds, permissions) =>
               saveMemberChanges(member.subjectId!, roleIds, permissions)}
+            onSaveLimitTo24Hours={async (limitTo24Hours) => {
+              await setMemberLimitTo24Hours({
+                id: member.subjectId!,
+                request: { limitTo24Hours },
+              });
+            }}
             onRemove={async () => {
               if (!tenantId || !member.subjectId) return;
               errorMessage = null;
