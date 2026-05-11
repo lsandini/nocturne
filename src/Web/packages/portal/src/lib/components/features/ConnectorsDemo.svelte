@@ -115,7 +115,7 @@
       file: "whatsapp.png",
       name: "WhatsApp",
       kind: "Messaging",
-      aliases: ["WA", "whatapp"],
+      aliases: ["WA"],
       comingSoon: true,
       issue: 177,
     },
@@ -248,23 +248,23 @@
       ></span>
     {/if}
     <span class="font-mono text-[12px] shrink-0 flex items-center gap-1.5">
-        {#if query}
-            <span class="text-glucose-in-range px-2.5 py-1 rounded-full bg-glucose-in-range/15 border border-glucose-in-range/30">
-                {activeMatches} match{activeMatches === 1 ? "" : "es"}
-            </span>
-            {#if comingSoonMatches > 0}
-                <span class="text-muted-foreground px-2.5 py-1 rounded-full bg-muted/30 border border-border">
-                    {comingSoonMatches} coming soon
-                </span>
-            {/if}
-        {:else}
-            <span class="text-glucose-in-range px-2.5 py-1 rounded-full bg-glucose-in-range/15 border border-glucose-in-range/30">
-                {activeMatches} live
-            </span>
-            <span class="text-muted-foreground px-2.5 py-1 rounded-full bg-muted/30 border border-border">
-                {comingSoonMatches} coming soon
-            </span>
+      {#if query}
+        <span class="text-glucose-in-range px-2.5 py-1 rounded-full bg-glucose-in-range/15 border border-glucose-in-range/30">
+          {activeMatches} match{activeMatches === 1 ? "" : "es"}
+        </span>
+        {#if comingSoonMatches > 0}
+          <span class="text-muted-foreground px-2.5 py-1 rounded-full bg-muted/30 border border-border">
+            {comingSoonMatches} coming soon
+          </span>
         {/if}
+      {:else}
+        <span class="text-glucose-in-range px-2.5 py-1 rounded-full bg-glucose-in-range/15 border border-glucose-in-range/30">
+          {activeMatches} live
+        </span>
+        <span class="text-muted-foreground px-2.5 py-1 rounded-full bg-muted/30 border border-border">
+          {comingSoonMatches} coming soon
+        </span>
+      {/if}
     </span>
   </div>
 
