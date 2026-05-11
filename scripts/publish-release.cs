@@ -97,6 +97,10 @@ finally
 // This makes the compose self-contained and compatible with Portainer CE.
 static string InlineInitScript(string composeYaml, string initScriptPath)
 {
+    if (!File.Exists(initScriptPath))
+        throw new FileNotFoundException(
+            $"[publish-release] Init script not found at: {initScriptPath}", initScriptPath);
+
     var initScriptContent = File.ReadAllText(initScriptPath);
 
     var yaml = new YamlStream();
@@ -136,8 +140,11 @@ static string InlineInitScript(string composeYaml, string initScriptPath)
                 break;
             }
         }
-        if (bindMountEntry is not null)
-            volumesList.Children.Remove(bindMountEntry);
+        if (bindMountEntry is null)
+            throw new InvalidOperationException(
+                "[publish-release] Could not find './init' bind-mount in postgres service volumes. " +
+                "Has the Aspire output format changed?");
+        volumesList.Children.Remove(bindMountEntry);
     }
 
     // Add configs reference to the postgres service
@@ -145,7 +152,7 @@ static string InlineInitScript(string composeYaml, string initScriptPath)
         new YamlMappingNode(
             new YamlScalarNode("source"), new YamlScalarNode("nocturne-init"),
             new YamlScalarNode("target"), new YamlScalarNode("/docker-entrypoint-initdb.d/00-init.sh"),
-            new YamlScalarNode("mode"), new YamlScalarNode("0755")
+            new YamlScalarNode("mode"), new YamlScalarNode("493") { Style = YamlDotNet.Core.ScalarStyle.Plain }
         )
     );
     postgresService.Children[new YamlScalarNode("configs")] = configsRef;
