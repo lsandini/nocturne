@@ -120,7 +120,7 @@
       issue: 177,
     },
     {
-      file: "imessage.png",
+      file: "imessage.jpg",
       name: "iMessage",
       kind: "Messaging",
       aliases: ["Apple Messages", "iMsg", "ios"],
@@ -136,7 +136,7 @@
       issue: 179,
     },
     {
-      file: "msteams.png",
+      file: "teams.png",
       name: "MS Teams",
       kind: "Messaging",
       aliases: ["Teams", "Microsoft Teams"],
