@@ -291,6 +291,7 @@
           src="/logos/{c.file}"
           alt={c.name}
           class="size-5 rounded object-cover shrink-0 {c.comingSoon ? 'grayscale' : ''}"
+          onerror={(e) => { (e.currentTarget as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff30' stroke-width='1.5'%3E%3Crect x='3' y='3' width='18' height='18' rx='3'/%3E%3C/svg%3E"; }}
         />
         <span class="text-[13px] text-foreground font-medium truncate"
           >{c.name}</span
