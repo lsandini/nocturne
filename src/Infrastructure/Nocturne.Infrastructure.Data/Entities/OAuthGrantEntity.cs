@@ -92,6 +92,13 @@ public class OAuthGrantEntity : ITenantScoped, IAuditable
     public DateTime? RevokedAt { get; set; }
 
     /// <summary>
+    /// When this grant was dismissed from the UI by the user.
+    /// Only applicable to terminal-state grants (revoked or expired).
+    /// </summary>
+    [Column("dismissed_at")]
+    public DateTime? DismissedAt { get; set; }
+
+    /// <summary>
     /// When this grant expires. Only used for guest grants (creation + 48h).
     /// </summary>
     [Column("expires_at")]

@@ -12905,9 +12905,14 @@ export class GuestLinkClient {
 
     /**
      * List guest links for the current user's effective subject.
+     * @param includeDismissed (optional) 
      */
-    getGuestLinks(signal?: AbortSignal): Promise<GuestLinkInfo[]> {
-        let url_ = this.baseUrl + "/api/v4/guest-links";
+    getGuestLinks(includeDismissed?: boolean | undefined, signal?: AbortSignal): Promise<GuestLinkInfo[]> {
+        let url_ = this.baseUrl + "/api/v4/guest-links?";
+        if (includeDismissed === null)
+            throw new globalThis.Error("The parameter 'includeDismissed' cannot be null.");
+        else if (includeDismissed !== undefined)
+            url_ += "includeDismissed=" + encodeURIComponent("" + includeDismissed) + "&";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_: RequestInit = {
@@ -12963,6 +12968,49 @@ export class GuestLinkClient {
     }
 
     protected processRevokeGuestLink(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status === 404) {
+            return response.text().then((_responseText) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result404);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
+     * Dismiss a terminal (revoked or expired) guest link from the UI.
+     */
+    dismissGuestLink(grantId: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/v4/guest-links/{grantId}/dismiss";
+        if (grantId === undefined || grantId === null)
+            throw new globalThis.Error("The parameter 'grantId' must be defined.");
+        url_ = url_.replace("{grantId}", encodeURIComponent("" + grantId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "PATCH",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDismissGuestLink(_response);
+        });
+    }
+
+    protected processDismissGuestLink(response: Response): Promise<void> {
         const status = response.status;
         let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
         if (status === 204) {
@@ -28550,6 +28598,7 @@ export interface GuestLinkInfo {
     activatedAt?: Date | undefined;
     activatedIp?: string | undefined;
     revokedAt?: Date | undefined;
+    dismissedAt?: Date | undefined;
     status?: GuestLinkStatus;
 }
 

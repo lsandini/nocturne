@@ -11773,6 +11773,17 @@
         ],
         "summary": "List guest links for the current user's effective subject.",
         "operationId": "GuestLink_GetGuestLinks",
+        "parameters": [
+          {
+            "name": "includeDismissed",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "x-position": 1
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -11798,6 +11809,46 @@
         ],
         "summary": "Revoke an active guest link.",
         "operationId": "GuestLink_RevokeGuestLink",
+        "parameters": [
+          {
+            "name": "grantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command",
+        "x-remote-invalidates": [
+          "GetGuestLinks"
+        ]
+      }
+    },
+    "/api/v4/guest-links/{grantId}/dismiss": {
+      "patch": {
+        "tags": [
+          "Guest Link"
+        ],
+        "summary": "Dismiss a terminal (revoked or expired) guest link from the UI.",
+        "operationId": "GuestLink_DismissGuestLink",
         "parameters": [
           {
             "name": "grantId",
@@ -34793,6 +34844,11 @@
             "nullable": true
           },
           "revokedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dismissedAt": {
             "type": "string",
             "format": "date-time",
             "nullable": true
