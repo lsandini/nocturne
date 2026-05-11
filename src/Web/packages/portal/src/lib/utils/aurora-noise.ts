@@ -49,8 +49,8 @@ function fbm(px: number, py: number): number {
  * @param cy  chip center y in container pixels
  * @param cw  container width in pixels
  * @param ch  container height in pixels
- * @param t   time in seconds (use RAF `now / 1000`)
- * @returns   { rx, ry } — both in [0, 1]. Subtract 0.5 and scale for force.
+ * @param t   time in seconds — pass `now / 1000 * speed` to match AuroraCanvas exactly (speed defaults to 1.0)
+ * @returns   { rx, ry } — approximately in [0, 1]. Subtract 0.5 and scale for force.
  */
 export function sampleFlow(
   cx: number, cy: number,
