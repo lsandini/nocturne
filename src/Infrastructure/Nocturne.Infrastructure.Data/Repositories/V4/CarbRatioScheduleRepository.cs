@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models.V4;
 using Nocturne.Infrastructure.Data.Mappers.V4;
+using Nocturne.Infrastructure.Data.Services;
 
 namespace Nocturne.Infrastructure.Data.Repositories.V4;
 
@@ -11,17 +12,17 @@ namespace Nocturne.Infrastructure.Data.Repositories.V4;
 /// </summary>
 public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
 {
-    private readonly NocturneDbContext _context;
+    private readonly ITenantDbContextFactory _contextFactory;
     private readonly ILogger<CarbRatioScheduleRepository> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CarbRatioScheduleRepository"/> class.
     /// </summary>
-    /// <param name="context">The database context.</param>
+    /// <param name="contextFactory">The tenant database context factory.</param>
     /// <param name="logger">The logger instance.</param>
-    public CarbRatioScheduleRepository(NocturneDbContext context, ILogger<CarbRatioScheduleRepository> logger)
+    public CarbRatioScheduleRepository(ITenantDbContextFactory contextFactory, ILogger<CarbRatioScheduleRepository> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _logger = logger;
     }
 
@@ -48,7 +49,8 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
         CancellationToken ct = default
     )
     {
-        var query = _context.CarbRatioSchedules.AsNoTracking().AsQueryable();
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var query = ctx.CarbRatioSchedules.AsNoTracking().AsQueryable();
         if (from.HasValue)
             query = query.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
@@ -70,7 +72,8 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
     /// <returns>The carbohydrate ratio schedule, or null if not found.</returns>
     public async Task<CarbRatioSchedule?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _context.CarbRatioSchedules.FindAsync([id], ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.CarbRatioSchedules.FindAsync([id], ct);
         return entity is null ? null : CarbRatioScheduleMapper.ToDomainModel(entity);
     }
 
@@ -82,7 +85,8 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
     /// <returns>The carbohydrate ratio schedule, or null if not found.</returns>
     public async Task<CarbRatioSchedule?> GetByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        var entity = await _context.CarbRatioSchedules.FirstOrDefaultAsync(e => e.LegacyId == legacyId, ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.CarbRatioSchedules.FirstOrDefaultAsync(e => e.LegacyId == legacyId, ct);
         return entity is null ? null : CarbRatioScheduleMapper.ToDomainModel(entity);
     }
 
@@ -97,7 +101,8 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
         CancellationToken ct = default
     )
     {
-        var entities = await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx
             .CarbRatioSchedules.AsNoTracking()
             .Where(e => e.ProfileName == profileName)
             .OrderByDescending(e => e.Timestamp)
@@ -115,7 +120,8 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
     public async Task<CarbRatioSchedule?> GetActiveAtAsync(
         string profileName, DateTime timestamp, CancellationToken ct = default)
     {
-        var entity = await _context.CarbRatioSchedules
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.CarbRatioSchedules
             .AsNoTracking()
             .Where(e => e.ProfileName == profileName && e.Timestamp <= timestamp)
             .OrderByDescending(e => e.Timestamp)
@@ -132,9 +138,10 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
     /// <returns>The created carbohydrate ratio schedule.</returns>
     public async Task<CarbRatioSchedule> CreateAsync(CarbRatioSchedule model, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity = CarbRatioScheduleMapper.ToEntity(model);
-        _context.CarbRatioSchedules.Add(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.CarbRatioSchedules.Add(entity);
+        await ctx.SaveChangesAsync(ct);
         return CarbRatioScheduleMapper.ToDomainModel(entity);
     }
 
@@ -147,11 +154,12 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
     /// <returns>The updated carbohydrate ratio schedule.</returns>
     public async Task<CarbRatioSchedule> UpdateAsync(Guid id, CarbRatioSchedule model, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity =
-            await _context.CarbRatioSchedules.FindAsync([id], ct)
+            await ctx.CarbRatioSchedules.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"CarbRatioSchedule {id} not found");
         CarbRatioScheduleMapper.UpdateEntity(entity, model);
-        await _context.SaveChangesAsync(ct);
+        await ctx.SaveChangesAsync(ct);
         return CarbRatioScheduleMapper.ToDomainModel(entity);
     }
 
@@ -162,11 +170,12 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
     /// <param name="ct">The cancellation token.</param>
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity =
-            await _context.CarbRatioSchedules.FindAsync([id], ct)
+            await ctx.CarbRatioSchedules.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"CarbRatioSchedule {id} not found");
-        _context.CarbRatioSchedules.Remove(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.CarbRatioSchedules.Remove(entity);
+        await ctx.SaveChangesAsync(ct);
     }
 
     /// <summary>
@@ -177,7 +186,8 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
     /// <returns>The number of deleted records.</returns>
     public async Task<int> DeleteByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        return await _context.CarbRatioSchedules.Where(e => e.LegacyId == legacyId).ExecuteDeleteAsync(ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx.CarbRatioSchedules.Where(e => e.LegacyId == legacyId).ExecuteDeleteAsync(ct);
     }
 
     /// <summary>
@@ -188,7 +198,8 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
     /// <returns>The number of deleted records.</returns>
     public async Task<int> DeleteByLegacyIdPrefixAsync(string prefix, CancellationToken ct = default)
     {
-        return await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx
             .CarbRatioSchedules.Where(e => e.LegacyId != null && e.LegacyId.StartsWith(prefix))
             .ExecuteDeleteAsync(ct);
     }
@@ -202,7 +213,8 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
     /// <returns>The count of matching records.</returns>
     public async Task<int> CountAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
     {
-        var query = _context.CarbRatioSchedules.AsNoTracking().AsQueryable();
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var query = ctx.CarbRatioSchedules.AsNoTracking().AsQueryable();
         if (from.HasValue)
             query = query.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
@@ -221,7 +233,8 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
         CancellationToken ct = default
     )
     {
-        var entities = await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx
             .CarbRatioSchedules.AsNoTracking()
             .Where(e => e.CorrelationId == correlationId)
             .ToListAsync(ct);
@@ -255,9 +268,11 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
             .Select(e => e.LegacyId!)
             .ToHashSet();
 
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+
         if (legacyIds.Count > 0)
         {
-            var existingIds = await _context
+            var existingIds = await ctx
                 .CarbRatioSchedules.AsNoTracking()
                 .Where(e => legacyIds.Contains(e.LegacyId!))
                 .Select(e => e.LegacyId)
@@ -275,9 +290,9 @@ public class CarbRatioScheduleRepository : ICarbRatioScheduleRepository
         const int batchSize = 500;
         foreach (var batch in entities.Chunk(batchSize))
         {
-            _context.CarbRatioSchedules.AddRange(batch);
-            await _context.SaveChangesAsync(ct);
-            _context.ChangeTracker.Clear();
+            ctx.CarbRatioSchedules.AddRange(batch);
+            await ctx.SaveChangesAsync(ct);
+            ctx.ChangeTracker.Clear();
         }
 
         return entities.Select(CarbRatioScheduleMapper.ToDomainModel);

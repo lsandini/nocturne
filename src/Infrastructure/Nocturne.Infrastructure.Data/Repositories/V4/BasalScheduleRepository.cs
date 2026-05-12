@@ -5,6 +5,7 @@ using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models.V4;
 using Nocturne.Infrastructure.Data.Extensions;
 using Nocturne.Infrastructure.Data.Mappers.V4;
+using Nocturne.Infrastructure.Data.Services;
 
 namespace Nocturne.Infrastructure.Data.Repositories.V4;
 
@@ -13,19 +14,19 @@ namespace Nocturne.Infrastructure.Data.Repositories.V4;
 /// </summary>
 public class BasalScheduleRepository : IBasalScheduleRepository
 {
-    private readonly NocturneDbContext _context;
+    private readonly ITenantDbContextFactory _contextFactory;
     private readonly IAuditContext _auditContext;
     private readonly ILogger<BasalScheduleRepository> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BasalScheduleRepository"/> class.
     /// </summary>
-    /// <param name="context">The database context.</param>
+    /// <param name="contextFactory">The tenant database context factory.</param>
     /// <param name="auditContext">The audit context for tracking mutations.</param>
     /// <param name="logger">The logger instance.</param>
-    public BasalScheduleRepository(NocturneDbContext context, IAuditContext auditContext, ILogger<BasalScheduleRepository> logger)
+    public BasalScheduleRepository(ITenantDbContextFactory contextFactory, IAuditContext auditContext, ILogger<BasalScheduleRepository> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _auditContext = auditContext;
         _logger = logger;
     }
@@ -53,7 +54,8 @@ public class BasalScheduleRepository : IBasalScheduleRepository
         CancellationToken ct = default
     )
     {
-        var query = _context.BasalSchedules.AsNoTracking().AsQueryable();
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var query = ctx.BasalSchedules.AsNoTracking().AsQueryable();
         if (from.HasValue)
             query = query.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
@@ -75,7 +77,8 @@ public class BasalScheduleRepository : IBasalScheduleRepository
     /// <returns>The basal schedule, or null if not found.</returns>
     public async Task<BasalSchedule?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _context.BasalSchedules.FindAsync([id], ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.BasalSchedules.FindAsync([id], ct);
         return entity is null ? null : BasalScheduleMapper.ToDomainModel(entity);
     }
 
@@ -87,7 +90,8 @@ public class BasalScheduleRepository : IBasalScheduleRepository
     /// <returns>The basal schedule, or null if not found.</returns>
     public async Task<BasalSchedule?> GetByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        var entity = await _context.BasalSchedules.FirstOrDefaultAsync(e => e.LegacyId == legacyId, ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.BasalSchedules.FirstOrDefaultAsync(e => e.LegacyId == legacyId, ct);
         return entity is null ? null : BasalScheduleMapper.ToDomainModel(entity);
     }
 
@@ -102,7 +106,8 @@ public class BasalScheduleRepository : IBasalScheduleRepository
         CancellationToken ct = default
     )
     {
-        var entities = await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx
             .BasalSchedules.AsNoTracking()
             .Where(e => e.ProfileName == profileName)
             .OrderByDescending(e => e.Timestamp)
@@ -120,7 +125,8 @@ public class BasalScheduleRepository : IBasalScheduleRepository
     public async Task<BasalSchedule?> GetActiveAtAsync(
         string profileName, DateTime timestamp, CancellationToken ct = default)
     {
-        var entity = await _context.BasalSchedules
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.BasalSchedules
             .AsNoTracking()
             .Where(e => e.ProfileName == profileName && e.Timestamp <= timestamp)
             .OrderByDescending(e => e.Timestamp)
@@ -137,9 +143,10 @@ public class BasalScheduleRepository : IBasalScheduleRepository
     /// <returns>The created basal schedule.</returns>
     public async Task<BasalSchedule> CreateAsync(BasalSchedule model, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity = BasalScheduleMapper.ToEntity(model);
-        _context.BasalSchedules.Add(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.BasalSchedules.Add(entity);
+        await ctx.SaveChangesAsync(ct);
         return BasalScheduleMapper.ToDomainModel(entity);
     }
 
@@ -152,11 +159,12 @@ public class BasalScheduleRepository : IBasalScheduleRepository
     /// <returns>The updated basal schedule.</returns>
     public async Task<BasalSchedule> UpdateAsync(Guid id, BasalSchedule model, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity =
-            await _context.BasalSchedules.FindAsync([id], ct)
+            await ctx.BasalSchedules.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"BasalSchedule {id} not found");
         BasalScheduleMapper.UpdateEntity(entity, model);
-        await _context.SaveChangesAsync(ct);
+        await ctx.SaveChangesAsync(ct);
         return BasalScheduleMapper.ToDomainModel(entity);
     }
 
@@ -167,11 +175,12 @@ public class BasalScheduleRepository : IBasalScheduleRepository
     /// <param name="ct">The cancellation token.</param>
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity =
-            await _context.BasalSchedules.FindAsync([id], ct)
+            await ctx.BasalSchedules.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"BasalSchedule {id} not found");
-        _context.BasalSchedules.Remove(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.BasalSchedules.Remove(entity);
+        await ctx.SaveChangesAsync(ct);
     }
 
     /// <summary>
@@ -182,8 +191,9 @@ public class BasalScheduleRepository : IBasalScheduleRepository
     /// <returns>The number of deleted records.</returns>
     public async Task<int> DeleteByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        return await _context.AuditedExecuteDeleteAsync(
-            _context.BasalSchedules.Where(e => e.LegacyId == legacyId), _auditContext, ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx.AuditedExecuteDeleteAsync(
+            ctx.BasalSchedules.Where(e => e.LegacyId == legacyId), _auditContext, ct);
     }
 
     /// <summary>
@@ -194,8 +204,9 @@ public class BasalScheduleRepository : IBasalScheduleRepository
     /// <returns>The number of deleted records.</returns>
     public async Task<int> DeleteByLegacyIdPrefixAsync(string prefix, CancellationToken ct = default)
     {
-        return await _context.AuditedExecuteDeleteAsync(
-            _context.BasalSchedules.Where(e => e.LegacyId != null && e.LegacyId.StartsWith(prefix)),
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx.AuditedExecuteDeleteAsync(
+            ctx.BasalSchedules.Where(e => e.LegacyId != null && e.LegacyId.StartsWith(prefix)),
             _auditContext, ct);
     }
 
@@ -208,7 +219,8 @@ public class BasalScheduleRepository : IBasalScheduleRepository
     /// <returns>The count of matching records.</returns>
     public async Task<int> CountAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
     {
-        var query = _context.BasalSchedules.AsNoTracking().AsQueryable();
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var query = ctx.BasalSchedules.AsNoTracking().AsQueryable();
         if (from.HasValue)
             query = query.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
@@ -227,7 +239,8 @@ public class BasalScheduleRepository : IBasalScheduleRepository
         CancellationToken ct = default
     )
     {
-        var entities = await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx
             .BasalSchedules.AsNoTracking()
             .Where(e => e.CorrelationId == correlationId)
             .ToListAsync(ct);
@@ -261,9 +274,11 @@ public class BasalScheduleRepository : IBasalScheduleRepository
             .Select(e => e.LegacyId!)
             .ToHashSet();
 
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+
         if (legacyIds.Count > 0)
         {
-            var existingIds = await _context
+            var existingIds = await ctx
                 .BasalSchedules.AsNoTracking()
                 .Where(e => legacyIds.Contains(e.LegacyId!))
                 .Select(e => e.LegacyId)
@@ -281,9 +296,9 @@ public class BasalScheduleRepository : IBasalScheduleRepository
         const int batchSize = 500;
         foreach (var batch in entities.Chunk(batchSize))
         {
-            _context.BasalSchedules.AddRange(batch);
-            await _context.SaveChangesAsync(ct);
-            _context.ChangeTracker.Clear();
+            ctx.BasalSchedules.AddRange(batch);
+            await ctx.SaveChangesAsync(ct);
+            ctx.ChangeTracker.Clear();
         }
 
         return entities.Select(BasalScheduleMapper.ToDomainModel);

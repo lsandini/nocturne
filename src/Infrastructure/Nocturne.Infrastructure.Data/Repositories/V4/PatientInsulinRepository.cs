@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models.V4;
 using Nocturne.Infrastructure.Data.Mappers.V4;
+using Nocturne.Infrastructure.Data.Services;
 
 namespace Nocturne.Infrastructure.Data.Repositories.V4;
 
@@ -11,19 +12,19 @@ namespace Nocturne.Infrastructure.Data.Repositories.V4;
 /// </summary>
 public class PatientInsulinRepository : IPatientInsulinRepository
 {
-    private readonly NocturneDbContext _context;
+    private readonly ITenantDbContextFactory _contextFactory;
     private readonly ILogger<PatientInsulinRepository> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PatientInsulinRepository"/> class.
     /// </summary>
-    /// <param name="context">The database context.</param>
+    /// <param name="contextFactory">The tenant database context factory.</param>
     /// <param name="logger">The logger instance.</param>
     public PatientInsulinRepository(
-        NocturneDbContext context,
+        ITenantDbContextFactory contextFactory,
         ILogger<PatientInsulinRepository> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _logger = logger;
     }
 
@@ -34,7 +35,8 @@ public class PatientInsulinRepository : IPatientInsulinRepository
     /// <returns>A collection of patient insulins.</returns>
     public async Task<IEnumerable<PatientInsulin>> GetAllAsync(CancellationToken ct = default)
     {
-        var entities = await _context.PatientInsulins
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx.PatientInsulins
             .AsNoTracking()
             .OrderByDescending(e => e.IsCurrent)
             .ThenByDescending(e => e.StartDate)
@@ -50,7 +52,8 @@ public class PatientInsulinRepository : IPatientInsulinRepository
     /// <returns>A collection of current patient insulins.</returns>
     public async Task<IEnumerable<PatientInsulin>> GetCurrentAsync(CancellationToken ct = default)
     {
-        var entities = await _context.PatientInsulins
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx.PatientInsulins
             .AsNoTracking()
             .Where(e => e.IsCurrent)
             .OrderByDescending(e => e.StartDate)
@@ -67,7 +70,8 @@ public class PatientInsulinRepository : IPatientInsulinRepository
     /// <returns>The patient insulin record, or null if not found.</returns>
     public async Task<PatientInsulin?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _context.PatientInsulins.FindAsync([id], ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.PatientInsulins.FindAsync([id], ct);
         return entity is null ? null : PatientInsulinMapper.ToDomainModel(entity);
     }
 
@@ -79,9 +83,10 @@ public class PatientInsulinRepository : IPatientInsulinRepository
     /// <returns>The created patient insulin record.</returns>
     public async Task<PatientInsulin> CreateAsync(PatientInsulin model, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity = PatientInsulinMapper.ToEntity(model);
-        _context.PatientInsulins.Add(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.PatientInsulins.Add(entity);
+        await ctx.SaveChangesAsync(ct);
         return PatientInsulinMapper.ToDomainModel(entity);
     }
 
@@ -94,11 +99,12 @@ public class PatientInsulinRepository : IPatientInsulinRepository
     /// <returns>The updated patient insulin record.</returns>
     public async Task<PatientInsulin> UpdateAsync(Guid id, PatientInsulin model, CancellationToken ct = default)
     {
-        var entity = await _context.PatientInsulins.FindAsync([id], ct)
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.PatientInsulins.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"PatientInsulin {id} not found");
 
         PatientInsulinMapper.UpdateEntity(entity, model);
-        await _context.SaveChangesAsync(ct);
+        await ctx.SaveChangesAsync(ct);
         return PatientInsulinMapper.ToDomainModel(entity);
     }
 
@@ -109,11 +115,12 @@ public class PatientInsulinRepository : IPatientInsulinRepository
     /// <param name="ct">The cancellation token.</param>
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _context.PatientInsulins.FindAsync([id], ct)
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.PatientInsulins.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"PatientInsulin {id} not found");
 
-        _context.PatientInsulins.Remove(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.PatientInsulins.Remove(entity);
+        await ctx.SaveChangesAsync(ct);
     }
 
     /// <summary>
@@ -123,7 +130,8 @@ public class PatientInsulinRepository : IPatientInsulinRepository
     /// <returns>The primary bolus insulin, or null if none found.</returns>
     public async Task<PatientInsulin?> GetPrimaryBolusInsulinAsync(CancellationToken ct = default)
     {
-        var entity = await _context.PatientInsulins
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.PatientInsulins
             .AsNoTracking()
             .Where(e => e.IsCurrent && e.IsPrimary && (e.Role == "Bolus" || e.Role == "Both"))
             .FirstOrDefaultAsync(ct);
@@ -138,7 +146,8 @@ public class PatientInsulinRepository : IPatientInsulinRepository
     /// <returns>The primary basal insulin, or null if none found.</returns>
     public async Task<PatientInsulin?> GetPrimaryBasalInsulinAsync(CancellationToken ct = default)
     {
-        var entity = await _context.PatientInsulins
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.PatientInsulins
             .AsNoTracking()
             .Where(e => e.IsCurrent && e.IsPrimary && (e.Role == "Basal" || e.Role == "Both"))
             .FirstOrDefaultAsync(ct);
@@ -153,7 +162,8 @@ public class PatientInsulinRepository : IPatientInsulinRepository
     /// <param name="ct">The cancellation token.</param>
     public async Task SetPrimaryAsync(Guid insulinId, CancellationToken ct = default)
     {
-        var target = await _context.PatientInsulins.FindAsync([insulinId], ct)
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var target = await ctx.PatientInsulins.FindAsync([insulinId], ct)
             ?? throw new KeyNotFoundException($"PatientInsulin {insulinId} not found");
 
         // Determine which roles need to have their primary cleared
@@ -166,7 +176,7 @@ public class PatientInsulinRepository : IPatientInsulinRepository
         };
 
         // Clear IsPrimary on all other insulins that share the same role scope
-        var conflicting = await _context.PatientInsulins
+        var conflicting = await ctx.PatientInsulins
             .Where(e => e.Id != insulinId && e.IsPrimary && rolesToClear.Contains(e.Role))
             .ToListAsync(ct);
 
@@ -179,6 +189,6 @@ public class PatientInsulinRepository : IPatientInsulinRepository
         target.IsPrimary = true;
         target.SysUpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync(ct);
+        await ctx.SaveChangesAsync(ct);
     }
 }

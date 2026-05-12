@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models.V4;
 using Nocturne.Infrastructure.Data.Mappers.V4;
+using Nocturne.Infrastructure.Data.Services;
 
 namespace Nocturne.Infrastructure.Data.Repositories.V4;
 
@@ -11,17 +12,17 @@ namespace Nocturne.Infrastructure.Data.Repositories.V4;
 /// </summary>
 public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
 {
-    private readonly NocturneDbContext _context;
+    private readonly ITenantDbContextFactory _contextFactory;
     private readonly ILogger<TargetRangeScheduleRepository> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TargetRangeScheduleRepository"/> class.
     /// </summary>
-    /// <param name="context">The database context.</param>
+    /// <param name="contextFactory">The tenant database context factory.</param>
     /// <param name="logger">The logger instance.</param>
-    public TargetRangeScheduleRepository(NocturneDbContext context, ILogger<TargetRangeScheduleRepository> logger)
+    public TargetRangeScheduleRepository(ITenantDbContextFactory contextFactory, ILogger<TargetRangeScheduleRepository> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _logger = logger;
     }
 
@@ -48,7 +49,8 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
         CancellationToken ct = default
     )
     {
-        var query = _context.TargetRangeSchedules.AsNoTracking().AsQueryable();
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var query = ctx.TargetRangeSchedules.AsNoTracking().AsQueryable();
         if (from.HasValue)
             query = query.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
@@ -70,7 +72,8 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
     /// <returns>The target range schedule, or null if not found.</returns>
     public async Task<TargetRangeSchedule?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _context.TargetRangeSchedules.FindAsync([id], ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.TargetRangeSchedules.FindAsync([id], ct);
         return entity is null ? null : TargetRangeScheduleMapper.ToDomainModel(entity);
     }
 
@@ -82,7 +85,8 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
     /// <returns>The target range schedule, or null if not found.</returns>
     public async Task<TargetRangeSchedule?> GetByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        var entity = await _context.TargetRangeSchedules.FirstOrDefaultAsync(e => e.LegacyId == legacyId, ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.TargetRangeSchedules.FirstOrDefaultAsync(e => e.LegacyId == legacyId, ct);
         return entity is null ? null : TargetRangeScheduleMapper.ToDomainModel(entity);
     }
 
@@ -97,7 +101,8 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
         CancellationToken ct = default
     )
     {
-        var entities = await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx
             .TargetRangeSchedules.AsNoTracking()
             .Where(e => e.ProfileName == profileName)
             .OrderByDescending(e => e.Timestamp)
@@ -115,7 +120,8 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
     public async Task<TargetRangeSchedule?> GetActiveAtAsync(
         string profileName, DateTime timestamp, CancellationToken ct = default)
     {
-        var entity = await _context.TargetRangeSchedules
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.TargetRangeSchedules
             .AsNoTracking()
             .Where(e => e.ProfileName == profileName && e.Timestamp <= timestamp)
             .OrderByDescending(e => e.Timestamp)
@@ -132,9 +138,10 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
     /// <returns>The created target range schedule.</returns>
     public async Task<TargetRangeSchedule> CreateAsync(TargetRangeSchedule model, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity = TargetRangeScheduleMapper.ToEntity(model);
-        _context.TargetRangeSchedules.Add(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.TargetRangeSchedules.Add(entity);
+        await ctx.SaveChangesAsync(ct);
         return TargetRangeScheduleMapper.ToDomainModel(entity);
     }
 
@@ -151,11 +158,12 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
         CancellationToken ct = default
     )
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity =
-            await _context.TargetRangeSchedules.FindAsync([id], ct)
+            await ctx.TargetRangeSchedules.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"TargetRangeSchedule {id} not found");
         TargetRangeScheduleMapper.UpdateEntity(entity, model);
-        await _context.SaveChangesAsync(ct);
+        await ctx.SaveChangesAsync(ct);
         return TargetRangeScheduleMapper.ToDomainModel(entity);
     }
 
@@ -166,11 +174,12 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
     /// <param name="ct">The cancellation token.</param>
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity =
-            await _context.TargetRangeSchedules.FindAsync([id], ct)
+            await ctx.TargetRangeSchedules.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"TargetRangeSchedule {id} not found");
-        _context.TargetRangeSchedules.Remove(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.TargetRangeSchedules.Remove(entity);
+        await ctx.SaveChangesAsync(ct);
     }
 
     /// <summary>
@@ -181,7 +190,8 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
     /// <returns>The number of deleted records.</returns>
     public async Task<int> DeleteByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        return await _context.TargetRangeSchedules.Where(e => e.LegacyId == legacyId).ExecuteDeleteAsync(ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx.TargetRangeSchedules.Where(e => e.LegacyId == legacyId).ExecuteDeleteAsync(ct);
     }
 
     /// <summary>
@@ -192,7 +202,8 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
     /// <returns>The number of deleted records.</returns>
     public async Task<int> DeleteByLegacyIdPrefixAsync(string prefix, CancellationToken ct = default)
     {
-        return await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx
             .TargetRangeSchedules.Where(e => e.LegacyId != null && e.LegacyId.StartsWith(prefix))
             .ExecuteDeleteAsync(ct);
     }
@@ -206,7 +217,8 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
     /// <returns>The count of matching records.</returns>
     public async Task<int> CountAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
     {
-        var query = _context.TargetRangeSchedules.AsNoTracking().AsQueryable();
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var query = ctx.TargetRangeSchedules.AsNoTracking().AsQueryable();
         if (from.HasValue)
             query = query.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
@@ -225,7 +237,8 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
         CancellationToken ct = default
     )
     {
-        var entities = await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx
             .TargetRangeSchedules.AsNoTracking()
             .Where(e => e.CorrelationId == correlationId)
             .ToListAsync(ct);
@@ -259,9 +272,11 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
             .Select(e => e.LegacyId!)
             .ToHashSet();
 
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+
         if (legacyIds.Count > 0)
         {
-            var existingIds = await _context
+            var existingIds = await ctx
                 .TargetRangeSchedules.AsNoTracking()
                 .Where(e => legacyIds.Contains(e.LegacyId!))
                 .Select(e => e.LegacyId)
@@ -279,9 +294,9 @@ public class TargetRangeScheduleRepository : ITargetRangeScheduleRepository
         const int batchSize = 500;
         foreach (var batch in entities.Chunk(batchSize))
         {
-            _context.TargetRangeSchedules.AddRange(batch);
-            await _context.SaveChangesAsync(ct);
-            _context.ChangeTracker.Clear();
+            ctx.TargetRangeSchedules.AddRange(batch);
+            await ctx.SaveChangesAsync(ct);
+            ctx.ChangeTracker.Clear();
         }
 
         return entities.Select(TargetRangeScheduleMapper.ToDomainModel);

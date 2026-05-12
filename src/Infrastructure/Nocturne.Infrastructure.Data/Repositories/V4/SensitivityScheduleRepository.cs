@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models.V4;
 using Nocturne.Infrastructure.Data.Mappers.V4;
+using Nocturne.Infrastructure.Data.Services;
 
 namespace Nocturne.Infrastructure.Data.Repositories.V4;
 
@@ -11,17 +12,17 @@ namespace Nocturne.Infrastructure.Data.Repositories.V4;
 /// </summary>
 public class SensitivityScheduleRepository : ISensitivityScheduleRepository
 {
-    private readonly NocturneDbContext _context;
+    private readonly ITenantDbContextFactory _contextFactory;
     private readonly ILogger<SensitivityScheduleRepository> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SensitivityScheduleRepository"/> class.
     /// </summary>
-    /// <param name="context">The database context.</param>
+    /// <param name="contextFactory">The tenant database context factory.</param>
     /// <param name="logger">The logger instance.</param>
-    public SensitivityScheduleRepository(NocturneDbContext context, ILogger<SensitivityScheduleRepository> logger)
+    public SensitivityScheduleRepository(ITenantDbContextFactory contextFactory, ILogger<SensitivityScheduleRepository> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _logger = logger;
     }
 
@@ -48,7 +49,8 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
         CancellationToken ct = default
     )
     {
-        var query = _context.SensitivitySchedules.AsNoTracking().AsQueryable();
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var query = ctx.SensitivitySchedules.AsNoTracking().AsQueryable();
         if (from.HasValue)
             query = query.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
@@ -70,7 +72,8 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
     /// <returns>The insulin sensitivity schedule, or null if not found.</returns>
     public async Task<SensitivitySchedule?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _context.SensitivitySchedules.FindAsync([id], ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.SensitivitySchedules.FindAsync([id], ct);
         return entity is null ? null : SensitivityScheduleMapper.ToDomainModel(entity);
     }
 
@@ -82,7 +85,8 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
     /// <returns>The insulin sensitivity schedule, or null if not found.</returns>
     public async Task<SensitivitySchedule?> GetByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        var entity = await _context.SensitivitySchedules.FirstOrDefaultAsync(e => e.LegacyId == legacyId, ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.SensitivitySchedules.FirstOrDefaultAsync(e => e.LegacyId == legacyId, ct);
         return entity is null ? null : SensitivityScheduleMapper.ToDomainModel(entity);
     }
 
@@ -97,7 +101,8 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
         CancellationToken ct = default
     )
     {
-        var entities = await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx
             .SensitivitySchedules.AsNoTracking()
             .Where(e => e.ProfileName == profileName)
             .OrderByDescending(e => e.Timestamp)
@@ -115,7 +120,8 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
     public async Task<SensitivitySchedule?> GetActiveAtAsync(
         string profileName, DateTime timestamp, CancellationToken ct = default)
     {
-        var entity = await _context.SensitivitySchedules
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.SensitivitySchedules
             .AsNoTracking()
             .Where(e => e.ProfileName == profileName && e.Timestamp <= timestamp)
             .OrderByDescending(e => e.Timestamp)
@@ -132,9 +138,10 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
     /// <returns>The created record.</returns>
     public async Task<SensitivitySchedule> CreateAsync(SensitivitySchedule model, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity = SensitivityScheduleMapper.ToEntity(model);
-        _context.SensitivitySchedules.Add(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.SensitivitySchedules.Add(entity);
+        await ctx.SaveChangesAsync(ct);
         return SensitivityScheduleMapper.ToDomainModel(entity);
     }
 
@@ -151,11 +158,12 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
         CancellationToken ct = default
     )
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity =
-            await _context.SensitivitySchedules.FindAsync([id], ct)
+            await ctx.SensitivitySchedules.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"SensitivitySchedule {id} not found");
         SensitivityScheduleMapper.UpdateEntity(entity, model);
-        await _context.SaveChangesAsync(ct);
+        await ctx.SaveChangesAsync(ct);
         return SensitivityScheduleMapper.ToDomainModel(entity);
     }
 
@@ -166,11 +174,12 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
     /// <param name="ct">The cancellation token.</param>
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity =
-            await _context.SensitivitySchedules.FindAsync([id], ct)
+            await ctx.SensitivitySchedules.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"SensitivitySchedule {id} not found");
-        _context.SensitivitySchedules.Remove(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.SensitivitySchedules.Remove(entity);
+        await ctx.SaveChangesAsync(ct);
     }
 
     /// <summary>
@@ -181,7 +190,8 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
     /// <returns>The number of deleted records.</returns>
     public async Task<int> DeleteByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        return await _context.SensitivitySchedules.Where(e => e.LegacyId == legacyId).ExecuteDeleteAsync(ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx.SensitivitySchedules.Where(e => e.LegacyId == legacyId).ExecuteDeleteAsync(ct);
     }
 
     /// <summary>
@@ -192,7 +202,8 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
     /// <returns>The number of deleted records.</returns>
     public async Task<int> DeleteByLegacyIdPrefixAsync(string prefix, CancellationToken ct = default)
     {
-        return await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx
             .SensitivitySchedules.Where(e => e.LegacyId != null && e.LegacyId.StartsWith(prefix))
             .ExecuteDeleteAsync(ct);
     }
@@ -206,7 +217,8 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
     /// <returns>The count of matching records.</returns>
     public async Task<int> CountAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
     {
-        var query = _context.SensitivitySchedules.AsNoTracking().AsQueryable();
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var query = ctx.SensitivitySchedules.AsNoTracking().AsQueryable();
         if (from.HasValue)
             query = query.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
@@ -225,7 +237,8 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
         CancellationToken ct = default
     )
     {
-        var entities = await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx
             .SensitivitySchedules.AsNoTracking()
             .Where(e => e.CorrelationId == correlationId)
             .ToListAsync(ct);
@@ -259,9 +272,11 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
             .Select(e => e.LegacyId!)
             .ToHashSet();
 
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+
         if (legacyIds.Count > 0)
         {
-            var existingIds = await _context
+            var existingIds = await ctx
                 .SensitivitySchedules.AsNoTracking()
                 .Where(e => legacyIds.Contains(e.LegacyId!))
                 .Select(e => e.LegacyId)
@@ -279,9 +294,9 @@ public class SensitivityScheduleRepository : ISensitivityScheduleRepository
         const int batchSize = 500;
         foreach (var batch in entities.Chunk(batchSize))
         {
-            _context.SensitivitySchedules.AddRange(batch);
-            await _context.SaveChangesAsync(ct);
-            _context.ChangeTracker.Clear();
+            ctx.SensitivitySchedules.AddRange(batch);
+            await ctx.SaveChangesAsync(ct);
+            ctx.ChangeTracker.Clear();
         }
 
         return entities.Select(SensitivityScheduleMapper.ToDomainModel);

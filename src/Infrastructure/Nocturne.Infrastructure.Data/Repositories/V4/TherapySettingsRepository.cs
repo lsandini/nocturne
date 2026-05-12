@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Core.Models.V4;
 using Nocturne.Infrastructure.Data.Mappers.V4;
+using Nocturne.Infrastructure.Data.Services;
 
 namespace Nocturne.Infrastructure.Data.Repositories.V4;
 
@@ -11,17 +12,17 @@ namespace Nocturne.Infrastructure.Data.Repositories.V4;
 /// </summary>
 public class TherapySettingsRepository : ITherapySettingsRepository
 {
-    private readonly NocturneDbContext _context;
+    private readonly ITenantDbContextFactory _contextFactory;
     private readonly ILogger<TherapySettingsRepository> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TherapySettingsRepository"/> class.
     /// </summary>
-    /// <param name="context">The database context.</param>
+    /// <param name="contextFactory">The tenant database context factory.</param>
     /// <param name="logger">The logger instance.</param>
-    public TherapySettingsRepository(NocturneDbContext context, ILogger<TherapySettingsRepository> logger)
+    public TherapySettingsRepository(ITenantDbContextFactory contextFactory, ILogger<TherapySettingsRepository> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _logger = logger;
     }
 
@@ -48,7 +49,8 @@ public class TherapySettingsRepository : ITherapySettingsRepository
         CancellationToken ct = default
     )
     {
-        var query = _context.TherapySettings.AsNoTracking().AsQueryable();
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var query = ctx.TherapySettings.AsNoTracking().AsQueryable();
         if (from.HasValue)
             query = query.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
@@ -70,7 +72,8 @@ public class TherapySettingsRepository : ITherapySettingsRepository
     /// <returns>The therapy settings, or null if not found.</returns>
     public async Task<TherapySettings?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var entity = await _context.TherapySettings.FindAsync([id], ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.TherapySettings.FindAsync([id], ct);
         return entity is null ? null : TherapySettingsMapper.ToDomainModel(entity);
     }
 
@@ -82,7 +85,8 @@ public class TherapySettingsRepository : ITherapySettingsRepository
     /// <returns>The therapy settings, or null if not found.</returns>
     public async Task<TherapySettings?> GetByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        var entity = await _context.TherapySettings.FirstOrDefaultAsync(e => e.LegacyId == legacyId, ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.TherapySettings.FirstOrDefaultAsync(e => e.LegacyId == legacyId, ct);
         return entity is null ? null : TherapySettingsMapper.ToDomainModel(entity);
     }
 
@@ -97,7 +101,8 @@ public class TherapySettingsRepository : ITherapySettingsRepository
         CancellationToken ct = default
     )
     {
-        var entities = await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx
             .TherapySettings.AsNoTracking()
             .Where(e => e.ProfileName == profileName)
             .OrderByDescending(e => e.Timestamp)
@@ -115,7 +120,8 @@ public class TherapySettingsRepository : ITherapySettingsRepository
     public async Task<TherapySettings?> GetActiveAtAsync(
         string profileName, DateTime timestamp, CancellationToken ct = default)
     {
-        var entity = await _context.TherapySettings
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.TherapySettings
             .AsNoTracking()
             .Where(e => e.ProfileName == profileName && e.Timestamp <= timestamp)
             .OrderByDescending(e => e.Timestamp)
@@ -132,9 +138,10 @@ public class TherapySettingsRepository : ITherapySettingsRepository
     /// <returns>The created therapy settings.</returns>
     public async Task<TherapySettings> CreateAsync(TherapySettings model, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity = TherapySettingsMapper.ToEntity(model);
-        _context.TherapySettings.Add(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.TherapySettings.Add(entity);
+        await ctx.SaveChangesAsync(ct);
         return TherapySettingsMapper.ToDomainModel(entity);
     }
 
@@ -147,11 +154,12 @@ public class TherapySettingsRepository : ITherapySettingsRepository
     /// <returns>The updated therapy settings.</returns>
     public async Task<TherapySettings> UpdateAsync(Guid id, TherapySettings model, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity =
-            await _context.TherapySettings.FindAsync([id], ct)
+            await ctx.TherapySettings.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"TherapySettings {id} not found");
         TherapySettingsMapper.UpdateEntity(entity, model);
-        await _context.SaveChangesAsync(ct);
+        await ctx.SaveChangesAsync(ct);
         return TherapySettingsMapper.ToDomainModel(entity);
     }
 
@@ -162,11 +170,12 @@ public class TherapySettingsRepository : ITherapySettingsRepository
     /// <param name="ct">The cancellation token.</param>
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
         var entity =
-            await _context.TherapySettings.FindAsync([id], ct)
+            await ctx.TherapySettings.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"TherapySettings {id} not found");
-        _context.TherapySettings.Remove(entity);
-        await _context.SaveChangesAsync(ct);
+        ctx.TherapySettings.Remove(entity);
+        await ctx.SaveChangesAsync(ct);
     }
 
     /// <summary>
@@ -177,7 +186,8 @@ public class TherapySettingsRepository : ITherapySettingsRepository
     /// <returns>The number of deleted records.</returns>
     public async Task<int> DeleteByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        return await _context.TherapySettings.Where(e => e.LegacyId == legacyId).ExecuteDeleteAsync(ct);
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx.TherapySettings.Where(e => e.LegacyId == legacyId).ExecuteDeleteAsync(ct);
     }
 
     /// <summary>
@@ -188,7 +198,8 @@ public class TherapySettingsRepository : ITherapySettingsRepository
     /// <returns>The number of deleted records.</returns>
     public async Task<int> DeleteByLegacyIdPrefixAsync(string prefix, CancellationToken ct = default)
     {
-        return await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx
             .TherapySettings.Where(e => e.LegacyId != null && e.LegacyId.StartsWith(prefix))
             .ExecuteDeleteAsync(ct);
     }
@@ -202,7 +213,8 @@ public class TherapySettingsRepository : ITherapySettingsRepository
     /// <returns>The count of matching records.</returns>
     public async Task<int> CountAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
     {
-        var query = _context.TherapySettings.AsNoTracking().AsQueryable();
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var query = ctx.TherapySettings.AsNoTracking().AsQueryable();
         if (from.HasValue)
             query = query.Where(e => e.Timestamp >= from.Value);
         if (to.HasValue)
@@ -221,7 +233,8 @@ public class TherapySettingsRepository : ITherapySettingsRepository
         CancellationToken ct = default
     )
     {
-        var entities = await _context
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx
             .TherapySettings.AsNoTracking()
             .Where(e => e.CorrelationId == correlationId)
             .ToListAsync(ct);
@@ -255,9 +268,11 @@ public class TherapySettingsRepository : ITherapySettingsRepository
             .Select(e => e.LegacyId!)
             .ToHashSet();
 
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+
         if (legacyIds.Count > 0)
         {
-            var existingIds = await _context
+            var existingIds = await ctx
                 .TherapySettings.AsNoTracking()
                 .Where(e => legacyIds.Contains(e.LegacyId!))
                 .Select(e => e.LegacyId)
@@ -275,9 +290,9 @@ public class TherapySettingsRepository : ITherapySettingsRepository
         const int batchSize = 500;
         foreach (var batch in entities.Chunk(batchSize))
         {
-            _context.TherapySettings.AddRange(batch);
-            await _context.SaveChangesAsync(ct);
-            _context.ChangeTracker.Clear();
+            ctx.TherapySettings.AddRange(batch);
+            await ctx.SaveChangesAsync(ct);
+            ctx.ChangeTracker.Clear();
         }
 
         return entities.Select(TherapySettingsMapper.ToDomainModel);
