@@ -22,14 +22,14 @@ public class GuestLinkService : IGuestLinkService
 
     private static readonly HashSet<string> AllowedGuestScopes = new(StringComparer.OrdinalIgnoreCase)
     {
-        OAuthScopes.EntriesRead, OAuthScopes.TreatmentsRead, OAuthScopes.DeviceStatusRead,
-        OAuthScopes.ProfileRead, OAuthScopes.HeartRateRead, OAuthScopes.StepCountRead,
-        OAuthScopes.NotificationsRead, OAuthScopes.ReportsRead, OAuthScopes.IdentityRead,
+        OAuthScopes.GlucoseRead, OAuthScopes.TreatmentsRead, OAuthScopes.DevicesRead,
+        OAuthScopes.TherapyRead, OAuthScopes.HeartRateRead, OAuthScopes.StepCountRead,
+        OAuthScopes.AlertsRead, OAuthScopes.ReportsRead, OAuthScopes.IdentityRead,
         OAuthScopes.HealthRead,
     };
 
     private static readonly List<string> DefaultScopes =
-        [OAuthScopes.HealthRead, OAuthScopes.ProfileRead, OAuthScopes.ReportsRead];
+        [OAuthScopes.HealthRead, OAuthScopes.TherapyRead, OAuthScopes.ReportsRead];
 
     private readonly NocturneDbContext _dbContext;
     private readonly ILogger<GuestLinkService> _logger;
