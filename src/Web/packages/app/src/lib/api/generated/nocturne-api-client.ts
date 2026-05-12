@@ -26154,6 +26154,7 @@ export interface ProcessableDocumentBase {
 export interface Entry extends ProcessableDocumentBase {
     _id?: string | undefined;
     mills?: number;
+    date?: number;
     dateString?: string | undefined;
     mgdl?: number;
     mbg?: number | undefined;
