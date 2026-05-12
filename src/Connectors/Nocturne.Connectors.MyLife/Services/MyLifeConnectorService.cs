@@ -192,6 +192,11 @@ public class MyLifeConnectorService(
                         }
                         else
                         {
+                            var maxMills = sgList.Max(s => s.Mills);
+                            var maxTime = DateTimeOffset.FromUnixTimeMilliseconds(maxMills).UtcDateTime;
+                            if (!result.LastEntryTimes.TryGetValue(SyncDataType.Glucose, out var existing) || maxTime > existing)
+                                result.LastEntryTimes[SyncDataType.Glucose] = maxTime;
+
                             _logger.LogInformation(
                                 "Synced {Count} SensorGlucose records from {Month}",
                                 sgList.Count, batch.Month);
@@ -199,20 +204,26 @@ public class MyLifeConnectorService(
                     }
                 }
 
-                // Treatment records — filter by treatment since, use context for consolidation
-                if (needRecords)
+                // Shared treatment filtering and context for records + state spans
+                List<MyLifeEvent>? treatmentEvents = null;
+                MyLifeContext? treatmentContext = null;
+                if (needRecords || needStateSpans)
                 {
-                    var publishEvents = batch.Events
+                    treatmentEvents = batch.Events
                         .Where(e => e.EventDateTime >= treatmentSinceTicks)
                         .ToList();
 
-                    var context = MyLifeContext.Create(
+                    treatmentContext = MyLifeContext.Create(
                         contextEvents,
                         config.EnableMealCarbConsolidation,
                         config.EnableTempBasalConsolidation,
                         config.TempBasalConsolidationWindowMinutes);
+                }
 
-                    var records = eventProcessor.MapRecords(publishEvents, context);
+                // Treatment records
+                if (needRecords)
+                {
+                    var records = eventProcessor.MapRecords(treatmentEvents!, treatmentContext!);
 
                     // Persist decomposition batches before V4 records (FK constraint)
                     if (records.DecompositionBatches.Count > 0)
@@ -236,20 +247,10 @@ public class MyLifeConnectorService(
                         records.DeviceEvents, PublishDeviceEventDataAsync, config, cancellationToken, monthCtx);
                 }
 
-                // TempBasal state spans — filter by treatment since, use context for consolidation
+                // TempBasal state spans
                 if (needStateSpans)
                 {
-                    var publishEvents = batch.Events
-                        .Where(e => e.EventDateTime >= treatmentSinceTicks)
-                        .ToList();
-
-                    var context = MyLifeContext.Create(
-                        contextEvents,
-                        false,
-                        config.EnableTempBasalConsolidation,
-                        config.TempBasalConsolidationWindowMinutes);
-
-                    var tempBasals = MyLifeStateSpanMapper.MapTempBasals(publishEvents, context).ToList();
+                    var tempBasals = MyLifeStateSpanMapper.MapTempBasals(treatmentEvents!, treatmentContext!).ToList();
 
                     await PublishRecordTypeAsync(result, SyncDataType.StateSpans, activeTypes,
                         tempBasals, PublishTempBasalDataAsync, config, cancellationToken, batch.Month);
