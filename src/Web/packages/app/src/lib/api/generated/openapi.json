@@ -12505,6 +12505,46 @@
         ]
       }
     },
+    "/api/v4/member-invites/public-access": {
+      "put": {
+        "tags": [
+          "Member Invite"
+        ],
+        "summary": "Toggle public (unauthenticated) read access for this tenant.\nAssigns or removes the viewer role on the Public system subject.",
+        "operationId": "MemberInvite_SetPublicAccess",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPublicAccessRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command",
+        "x-remote-invalidates": [
+          "GetMembers"
+        ]
+      }
+    },
     "/api/v4/me/permissions": {
       "get": {
         "tags": [
@@ -35300,6 +35340,15 @@
         "additionalProperties": false,
         "properties": {
           "limitTo24Hours": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SetPublicAccessRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
             "type": "boolean"
           }
         }
