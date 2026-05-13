@@ -1,5 +1,7 @@
 <script lang="ts">
   import { page } from "$app/state";
+  import { slide } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { Button } from "$lib/components/ui/button";
   import * as Card from "$lib/components/ui/card";
   import {
@@ -7,7 +9,6 @@
     Check,
     AlertTriangle,
     Link,
-    UserPlus,
     ShieldAlert,
   } from "lucide-svelte";
   import { getCurrentTenantId } from "../current-tenant.remote";
@@ -70,11 +71,17 @@
   let showCreateInvite = $state(false);
   let errorMessage = $state<string | null>(null);
   let successMessage = $state<string | null>(null);
+  let removingMemberIds = $state(new Set<string>());
 
   // --- Member edit state ---
   let expandedMember = $state<string | null>(null);
   let isSavingMember = $state(false);
   let isRevokingInvite = $state<string | null>(null);
+
+  // Visible members (filtered by optimistic removals)
+  const visibleMembers = $derived(
+    allMembers.filter((m) => !removingMemberIds.has(m.subjectId!)),
+  );
 
   function clearMessages() {
     setTimeout(() => {
@@ -82,7 +89,6 @@
       errorMessage = null;
     }, 3000);
   }
-
 
   function toggleExpandMember(memberId: string) {
     if (expandedMember === memberId) {
@@ -154,18 +160,89 @@
     </div>
   {/if}
 
-  <!-- Invite Section -->
-  {#if canInvite}
+  <!-- Active Members -->
+  {#if canManageMembers}
     <div class="space-y-4">
-      <div class="flex items-center justify-between gap-4">
-        <h2 class="text-lg font-semibold flex items-center gap-2">
-          <UserPlus class="h-5 w-5" />
-          Invite Members
-        </h2>
-        {#if !showCreateInvite}
-          <Button
-            variant="outline"
-            size="sm"
+      <h2 class="text-lg font-semibold flex items-center gap-2">
+        <Users class="h-5 w-5" />
+        Active Members
+      </h2>
+
+      {#if visibleMembers.length === 0 && removingMemberIds.size === 0}
+        <Card.Root>
+          <Card.Content
+            class="flex flex-col items-center justify-center py-12 text-center"
+          >
+            <div
+              class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted"
+            >
+              <Users class="h-6 w-6 text-muted-foreground" />
+            </div>
+            <p class="text-sm text-muted-foreground max-w-sm">
+              No members. Invite someone to share your data.
+            </p>
+          </Card.Content>
+        </Card.Root>
+      {:else}
+        {#each visibleMembers as member (member.subjectId)}
+          <div transition:slide={{ duration: 300 }} animate:flip={{ duration: 300 }}>
+            <MemberCard
+              {member}
+              roles={allRoles}
+              canEditRoles={canEditMemberRoles}
+              canManage={true}
+              currentSubjectId={page.data.user?.subjectId}
+              isExpanded={expandedMember === member.subjectId}
+              isSaving={isSavingMember}
+              onToggleExpand={() => toggleExpandMember(member.subjectId!)}
+              onSaveRoles={(roleIds, permissions) =>
+                saveMemberChanges(member.subjectId!, roleIds, permissions)}
+              onSaveLimitTo24Hours={async (limitTo24Hours) => {
+                try {
+                  await setMemberLimitTo24Hours({
+                    id: member.subjectId!,
+                    request: { limitTo24Hours },
+                  });
+                } catch {
+                  errorMessage = "Failed to update member. Please try again.";
+                  clearMessages();
+                }
+              }}
+              onRemove={async () => {
+                if (!tenantId || !member.subjectId) return;
+                removingMemberIds = new Set([...removingMemberIds, member.subjectId]);
+                errorMessage = null;
+                try {
+                  await removeMember({ id: tenantId, subjectId: member.subjectId });
+                  successMessage = "Member removed successfully.";
+                  clearMessages();
+                } catch {
+                  errorMessage = "Failed to remove member. Please try again.";
+                  removingMemberIds = new Set([...removingMemberIds].filter(x => x !== member.subjectId));
+                  clearMessages();
+                }
+              }}
+            />
+          </div>
+        {/each}
+      {/if}
+
+      <!-- Create Invite Link (inline card) -->
+      {#if canInvite}
+        {#if showCreateInvite && tenantId}
+          <CreateInviteCard
+            roles={allRoles}
+            tenantId={tenantId}
+            onCreated={() => {
+              successMessage = "Invite link created. Share it with the new member.";
+              clearMessages();
+            }}
+            onCancel={() => (showCreateInvite = false)}
+          />
+        {:else}
+          <button
+            type="button"
+            class="w-full rounded-xl border border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 bg-transparent hover:bg-muted/50 transition-colors py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer"
             onclick={() => (showCreateInvite = true)}
             {@attach coachmark({
               key: "setup-invite.create-link",
@@ -173,22 +250,10 @@
               description: "Create a shareable link to invite a caretaker, partner, or clinician.",
             })}
           >
-            <Link class="mr-1.5 h-3.5 w-3.5" />
+            <Link class="h-4 w-4" />
             Create Invite Link
-          </Button>
+          </button>
         {/if}
-      </div>
-
-      {#if showCreateInvite && tenantId}
-        <CreateInviteCard
-          roles={allRoles}
-          tenantId={tenantId}
-          onCreated={() => {
-            successMessage = "Invite link created. Share it with the new member.";
-            clearMessages();
-          }}
-          onCancel={() => (showCreateInvite = false)}
-        />
       {/if}
     </div>
   {/if}
@@ -215,71 +280,6 @@
         }
       }}
     />
-  {/if}
-
-  <!-- Active Members -->
-  {#if canManageMembers}
-    <div class="space-y-4">
-      <h2 class="text-lg font-semibold flex items-center gap-2">
-        <Users class="h-5 w-5" />
-        Active Members
-      </h2>
-
-      {#if allMembers.length === 0}
-        <Card.Root>
-          <Card.Content
-            class="flex flex-col items-center justify-center py-12 text-center"
-          >
-            <div
-              class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted"
-            >
-              <Users class="h-6 w-6 text-muted-foreground" />
-            </div>
-            <p class="text-sm text-muted-foreground max-w-sm">
-              No members. Invite someone to share your data.
-            </p>
-          </Card.Content>
-        </Card.Root>
-      {:else}
-        {#each allMembers as member (member.subjectId)}
-          <MemberCard
-            {member}
-            roles={allRoles}
-            canEditRoles={canEditMemberRoles}
-            canManage={true}
-            currentSubjectId={page.data.user?.subjectId}
-            isExpanded={expandedMember === member.subjectId}
-            isSaving={isSavingMember}
-            onToggleExpand={() => toggleExpandMember(member.subjectId!)}
-            onSaveRoles={(roleIds, permissions) =>
-              saveMemberChanges(member.subjectId!, roleIds, permissions)}
-            onSaveLimitTo24Hours={async (limitTo24Hours) => {
-              try {
-                await setMemberLimitTo24Hours({
-                  id: member.subjectId!,
-                  request: { limitTo24Hours },
-                });
-              } catch {
-                errorMessage = "Failed to update member. Please try again.";
-                clearMessages();
-              }
-            }}
-            onRemove={async () => {
-              if (!tenantId || !member.subjectId) return;
-              errorMessage = null;
-              try {
-                await removeMember({ id: tenantId, subjectId: member.subjectId });
-                successMessage = "Member removed successfully.";
-                clearMessages();
-              } catch {
-                errorMessage = "Failed to remove member. Please try again.";
-                clearMessages();
-              }
-            }}
-          />
-        {/each}
-      {/if}
-    </div>
   {/if}
 
   <!-- Temporary Guest Links -->

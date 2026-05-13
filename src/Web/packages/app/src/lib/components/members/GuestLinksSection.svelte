@@ -5,6 +5,8 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
+  import { slide } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import {
     Clock,
     Copy,
@@ -35,12 +37,15 @@
 
   // UI state
   let showDismissed = $state(false);
-  let dismissingId = $state<string | null>(null);
+  let removingIds = $state(new Set<string>());
 
   // Query
   const guestLinksQuery = $derived(canCreateGuestLinks ? getGuestLinks({ includeDismissed: true }) : null);
   const allLinks = $derived(guestLinksQuery?.current ?? []);
-  const guestLinks = $derived(showDismissed ? allLinks : allLinks.filter(l => !l.dismissedAt));
+  const guestLinks = $derived(
+    (showDismissed ? allLinks : allLinks.filter(l => !l.dismissedAt))
+      .filter(l => !removingIds.has(l.id!))
+  );
   const dismissedCount = $derived(allLinks.filter(l => l.dismissedAt).length);
   let showCreateForm = $state(false);
   let label = $state("");
@@ -50,7 +55,6 @@
   let createdUrl = $state<string | null>(null);
   let copiedCode = $state(false);
   let copiedUrl = $state(false);
-  let revokingId = $state<string | null>(null);
 
   function statusLabel(status: GuestLinkStatus | undefined): string {
     switch (status) {
@@ -178,24 +182,22 @@
   }
 
   async function handleDismiss(id: string) {
-    dismissingId = id;
+    removingIds = new Set([...removingIds, id]);
     try {
       await dismissGuestLink(id);
     } catch {
-      // Silently fail — the list will refresh
-    } finally {
-      dismissingId = null;
+      // Restore on failure
+      removingIds = new Set([...removingIds].filter(x => x !== id));
     }
   }
 
   async function handleRevoke(id: string) {
-    revokingId = id;
+    removingIds = new Set([...removingIds, id]);
     try {
       await revokeGuestLink(id);
     } catch {
-      // Silently fail — the list will refresh
-    } finally {
-      revokingId = null;
+      // Restore on failure
+      removingIds = new Set([...removingIds].filter(x => x !== id));
     }
   }
 
@@ -388,6 +390,7 @@
     {:else if allLinks.length > 0}
       <div class="space-y-2">
         {#each guestLinks as link (link.id)}
+          <div transition:slide={{ duration: 300 }} animate:flip={{ duration: 300 }}>
           <Card.Root>
             <Card.Content class="flex items-center gap-4 py-3{link.dismissedAt ? ' opacity-50' : ''}">
               <div class="flex-1 min-w-0">
@@ -414,14 +417,9 @@
                   variant="ghost"
                   size="sm"
                   class="text-destructive hover:text-destructive shrink-0"
-                  disabled={revokingId === link.id}
                   onclick={() => handleRevoke(link.id!)}
                 >
-                  {#if revokingId === link.id}
-                    <Loader2 class="mr-1 h-3.5 w-3.5 animate-spin" />
-                  {:else}
-                    <X class="mr-1 h-3.5 w-3.5" />
-                  {/if}
+                  <X class="mr-1 h-3.5 w-3.5" />
                   Revoke
                 </Button>
               {:else if isTerminal(link) && !link.dismissedAt}
@@ -429,19 +427,15 @@
                   variant="ghost"
                   size="sm"
                   class="text-muted-foreground hover:text-foreground shrink-0"
-                  disabled={dismissingId === link.id}
                   onclick={() => handleDismiss(link.id!)}
                 >
-                  {#if dismissingId === link.id}
-                    <Loader2 class="mr-1 h-3.5 w-3.5 animate-spin" />
-                  {:else}
-                    <EyeOff class="mr-1 h-3.5 w-3.5" />
-                  {/if}
+                  <EyeOff class="mr-1 h-3.5 w-3.5" />
                   Dismiss
                 </Button>
               {/if}
             </Card.Content>
           </Card.Root>
+          </div>
         {/each}
       </div>
       {#if dismissedCount > 0}
