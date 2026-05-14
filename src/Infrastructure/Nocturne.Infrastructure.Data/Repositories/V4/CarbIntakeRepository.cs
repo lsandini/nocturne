@@ -211,8 +211,57 @@ public class CarbIntakeRepository : ICarbIntakeRepository
         var entity =
             await ctx.CarbIntakes.FindAsync([id], ct)
             ?? throw new KeyNotFoundException($"CarbIntake {id} not found");
-        ctx.CarbIntakes.Remove(entity);
+        entity.DeletedAt = DateTime.UtcNow;
         await ctx.SaveChangesAsync(ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<CarbIntake> RestoreAsync(Guid id, CancellationToken ct = default)
+    {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entity = await ctx.CarbIntakes.IgnoreQueryFilters()
+            .Where(e => e.TenantId == ctx.TenantId && e.Id == id && e.DeletedAt != null)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new KeyNotFoundException($"Soft-deleted CarbIntake {id} not found");
+        entity.DeletedAt = null;
+        await ctx.SaveChangesAsync(ct);
+        return CarbIntakeMapper.ToDomainModel(entity);
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<CarbIntake>> BulkRestoreAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var idSet = ids.ToHashSet();
+        var entities = await ctx.CarbIntakes.IgnoreQueryFilters()
+            .Where(e => e.TenantId == ctx.TenantId && idSet.Contains(e.Id) && e.DeletedAt != null)
+            .ToListAsync(ct);
+        foreach (var entity in entities)
+            entity.DeletedAt = null;
+        await ctx.SaveChangesAsync(ct);
+        return entities.Select(CarbIntakeMapper.ToDomainModel);
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<CarbIntake>> GetDeletedAsync(int limit, int offset, CancellationToken ct = default)
+    {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        var entities = await ctx.CarbIntakes.IgnoreQueryFilters()
+            .Where(e => e.TenantId == ctx.TenantId && e.DeletedAt != null)
+            .OrderByDescending(e => e.DeletedAt)
+            .Skip(offset).Take(limit)
+            .AsNoTracking()
+            .ToListAsync(ct);
+        return entities.Select(CarbIntakeMapper.ToDomainModel);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> CountDeletedAsync(CancellationToken ct = default)
+    {
+        await using var ctx = await _contextFactory.CreateAsync(ct);
+        return await ctx.CarbIntakes.IgnoreQueryFilters()
+            .Where(e => e.TenantId == ctx.TenantId && e.DeletedAt != null)
+            .CountAsync(ct);
     }
 
     /// <summary>
@@ -261,7 +310,7 @@ public class CarbIntakeRepository : ICarbIntakeRepository
     public async Task<int> DeleteByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
         await using var ctx = await _contextFactory.CreateAsync(ct);
-        return await ctx.AuditedExecuteDeleteAsync(
+        return await ctx.AuditedSoftDeleteAsync(
             ctx.CarbIntakes.Where(e => e.LegacyId == legacyId), _auditContext, ct);
     }
 
@@ -275,7 +324,7 @@ public class CarbIntakeRepository : ICarbIntakeRepository
     public async Task<int> DeleteBySyncIdentifierAsync(string dataSource, string syncIdentifier, CancellationToken ct = default)
     {
         await using var ctx = await _contextFactory.CreateAsync(ct);
-        return await ctx.AuditedExecuteDeleteAsync(
+        return await ctx.AuditedSoftDeleteAsync(
             ctx.CarbIntakes.Where(e => e.DataSource == dataSource && e.SyncIdentifier == syncIdentifier),
             _auditContext, ct);
     }
@@ -328,7 +377,8 @@ public class CarbIntakeRepository : ICarbIntakeRepository
 
                 // Over-fetches by a Cartesian amount; the partial unique index
                 // on (tenant_id, data_source, sync_identifier) keeps this cheap.
-                var existingRows = await ctx.CarbIntakes
+                var existingRows = await ctx.CarbIntakes.IgnoreQueryFilters()
+                    .Where(e => e.TenantId == ctx.TenantId)
                     .Where(e => sources.Contains(e.DataSource!) && syncIds.Contains(e.SyncIdentifier!))
                     .ToListAsync(ct);
 
@@ -377,13 +427,20 @@ public class CarbIntakeRepository : ICarbIntakeRepository
 
             if (legacyIds.Count > 0)
             {
-                var existingIds = await ctx
-                    .CarbIntakes.AsNoTracking()
+                var existingRecords = await ctx.CarbIntakes.IgnoreQueryFilters().AsNoTracking()
+                    .Where(e => e.TenantId == ctx.TenantId)
                     .Where(e => legacyIds.Contains(e.LegacyId!))
-                    .Select(e => e.LegacyId)
+                    .Select(e => new { e.LegacyId, IsSoftDeleted = e.DeletedAt != null })
                     .ToListAsync(ct);
 
-                var existingSet = existingIds.ToHashSet();
+                var existingSet = existingRecords.Select(r => r.LegacyId).ToHashSet();
+                var softDeletedCount = existingRecords.Count(r => r.IsSoftDeleted);
+
+                if (softDeletedCount > 0)
+                    _logger.LogInformation(
+                        "Skipped {Count} previously-deleted {Type} records during import",
+                        softDeletedCount, "CarbIntake");
+
                 entities = entities
                     .Where(e => string.IsNullOrEmpty(e.LegacyId) || !existingSet.Contains(e.LegacyId))
                     .ToList();

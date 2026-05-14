@@ -11,6 +11,7 @@ using Nocturne.Core.Contracts.V4;
 using Nocturne.Core.Models;
 using Nocturne.Core.Contracts.V4.Repositories;
 using Nocturne.Infrastructure.Data;
+using Nocturne.Infrastructure.Data.Entities;
 using Nocturne.Infrastructure.Data.Entities.V4;
 
 using V4Models = Nocturne.Core.Models.V4;
@@ -1501,19 +1502,43 @@ public class TreatmentDecomposer : ITreatmentDecomposer, IDecomposer<Treatment>
     /// <inheritdoc />
     public async Task<int> DeleteByLegacyIdAsync(string legacyId, CancellationToken ct = default)
     {
-        var deleted = 0;
-        deleted += await _bolusRepository.DeleteByLegacyIdAsync(legacyId, ct);
-        deleted += await _tempBasalRepository.DeleteByLegacyIdAsync(legacyId, ct);
-        deleted += await _carbIntakeRepository.DeleteByLegacyIdAsync(legacyId, ct);
-        deleted += await _bgCheckRepository.DeleteByLegacyIdAsync(legacyId, ct);
-        deleted += await _noteRepository.DeleteByLegacyIdAsync(legacyId, ct);
-        deleted += await _deviceEventRepository.DeleteByLegacyIdAsync(legacyId, ct);
-        deleted += await _bolusCalculationRepository.DeleteByLegacyIdAsync(legacyId, ct);
+        var strategy = _dbContext.Database.CreateExecutionStrategy();
 
-        if (deleted > 0)
-            _logger.LogDebug("Deleted {Count} v4 records for legacy treatment {LegacyId}", deleted, legacyId);
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _dbContext.Database.BeginTransactionAsync(ct);
+            var now = DateTime.UtcNow;
+            var deleted = 0;
 
-        return deleted;
+            deleted += await _dbContext.Boluses
+                .Where(e => e.LegacyId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.DeletedAt, now), ct);
+            deleted += await _dbContext.TempBasals
+                .Where(e => e.LegacyId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.DeletedAt, now), ct);
+            deleted += await _dbContext.CarbIntakes
+                .Where(e => e.LegacyId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.DeletedAt, now), ct);
+            deleted += await _dbContext.BGChecks
+                .Where(e => e.LegacyId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.DeletedAt, now), ct);
+            deleted += await _dbContext.Notes
+                .Where(e => e.LegacyId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.DeletedAt, now), ct);
+            deleted += await _dbContext.DeviceEvents
+                .Where(e => e.LegacyId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.DeletedAt, now), ct);
+            deleted += await _dbContext.BolusCalculations
+                .Where(e => e.LegacyId == legacyId)
+                .ExecuteUpdateAsync(s => s.SetProperty(e => e.DeletedAt, now), ct);
+
+            await tx.CommitAsync(ct);
+
+            if (deleted > 0)
+                _logger.LogDebug("Soft-deleted {Count} v4 records for legacy treatment {LegacyId}", deleted, legacyId);
+
+            return deleted;
+        });
     }
 
     /// <inheritdoc />
@@ -1560,7 +1585,7 @@ public class TreatmentDecomposer : ITreatmentDecomposer, IDecomposer<Treatment>
 
     private static async Task<int> DeleteEntitiesByTimeRange<T>(
         Microsoft.EntityFrameworkCore.DbSet<T> dbSet, DateTime? from, DateTime? to, CancellationToken ct)
-        where T : class
+        where T : class, ISoftDeletable
     {
         var query = dbSet.AsQueryable();
 
@@ -1612,6 +1637,6 @@ public class TreatmentDecomposer : ITreatmentDecomposer, IDecomposer<Treatment>
             }
         }
 
-        return await query.ExecuteDeleteAsync(ct);
+        return await query.ExecuteUpdateAsync(s => s.SetProperty(e => e.DeletedAt, DateTime.UtcNow), ct);
     }
 }
