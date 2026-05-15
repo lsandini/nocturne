@@ -50,7 +50,7 @@
   })}
   aria-pressed={selected || isStart || isEnd}
   class={cn(
-    "relative h-16 rounded-md border bg-background overflow-hidden transition-colors",
+    "relative h-16 w-full rounded-md border bg-background overflow-hidden transition-colors",
     "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-inset",
     inMonth ? "border-border/60" : "border-transparent opacity-40",
     disabled && "cursor-not-allowed opacity-30",
