@@ -28,15 +28,15 @@ dotnet test --filter "Category=Integration"
 # Frontend type checking
 cd src/Web/packages/app && pnpm run check
 
-# Regenerate just the NSwag TypeScript client
-dotnet build -t:GenerateClient src/API/Nocturne.API/Nocturne.API.csproj
+# Regenerate just the NSwag TypeScript client (force, e.g. during `aspire start` hot loop)
+dotnet build src/API/Nocturne.API/Nocturne.API.csproj -p:GenerateNSwagClient=true
 
 # EF Core migrations (must disable NSwag first)
 dotnet build -p:GenerateNSwagClient=false
 dotnet ef migrations add <Name> -p src/Infrastructure/Nocturne.Infrastructure.Data -s src/API/Nocturne.API
 ```
 
-Aspire orchestrates everything: PostgreSQL, the API, the SvelteKit frontend, and background services. A YARP gateway is the single external HTTPS endpoint; API and Web run as plain HTTP behind it. You only need to restart Aspire if its `Program.cs` changes. The NSwag client is regenerated automatically on Aspire startup. If you come across a roadblock from the `.dll`s being in use, just kill the dotnet processes.
+Aspire orchestrates everything: PostgreSQL, the API, the SvelteKit frontend, and background services. A YARP gateway is the single external HTTPS endpoint; API and Web run as plain HTTP behind it. You only need to restart Aspire if its `Program.cs` changes. The NSwag client is regenerated automatically on the initial Aspire startup build; subsequent `dotnet watch` rebuilds during the hot loop **skip** the codegen pipeline (NSwag + Zod + remote functions) for performance. If you change a controller/DTO and need the TS client to catch up, force a regen with `dotnet build src/API/Nocturne.API/Nocturne.API.csproj -p:GenerateNSwagClient=true`. If you come across a roadblock from the `.dll`s being in use, just kill the dotnet processes.
 
 ### Generated and Auto-Committed Files
 

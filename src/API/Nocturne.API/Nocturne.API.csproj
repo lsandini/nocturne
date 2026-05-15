@@ -85,13 +85,17 @@
     <Content Include="@(DiagramSource)" Link="wwwroot\diagrams\%(Filename)%(Extension)" CopyToOutputDirectory="Never" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <!-- NSwag TypeScript Client Generation -->
-  <!-- Runs automatically after build in development mode -->
-  <!-- Set GenerateNSwagClient=false to skip (e.g., in CI/CD or publish scenarios) -->
-  <!-- Manual: dotnet build -t:GenerateClient or dotnet build -p:GenerateNSwagClient=true -->
+  <!-- Runs on `dotnet build` and on initial Aspire startup (first build before watch loop). -->
+  <!-- Skipped on subsequent `dotnet watch` rebuilds (DOTNET_WATCH_ITERATION is set from -->
+  <!-- rebuild #1 onwards) so backend hot-loop iteration doesn't trigger TS regeneration. -->
+  <!-- Force regen during watch: dotnet build -p:GenerateNSwagClient=true -->
   <PropertyGroup>
+    <_GenerateNSwagClientExplicit>$(GenerateNSwagClient)</_GenerateNSwagClientExplicit>
     <GenerateNSwagClient Condition="'$(GenerateNSwagClient)' == ''">true</GenerateNSwagClient>
-    <!-- Skip NSwag generation during publish to avoid issues with runtime dependencies -->
-    <GenerateNSwagClient Condition="'$(PublishDir)' != ''">false</GenerateNSwagClient>
+    <!-- Skip during dotnet watch rebuilds unless explicitly overridden -->
+    <GenerateNSwagClient Condition="'$(_GenerateNSwagClientExplicit)' == '' And '$(DOTNET_WATCH_ITERATION)' != ''">false</GenerateNSwagClient>
+    <!-- Skip during publish to avoid issues with runtime dependencies -->
+    <GenerateNSwagClient Condition="'$(_GenerateNSwagClientExplicit)' == '' And '$(PublishDir)' != ''">false</GenerateNSwagClient>
   </PropertyGroup>
   <Target Name="GenerateClient" AfterTargets="PostBuildEvent" Condition="'$(GenerateNSwagClient)' == 'true'">
     <Message Importance="high" Text="Generating TypeScript API client with NSwag..." />
