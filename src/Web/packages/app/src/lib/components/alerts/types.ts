@@ -262,9 +262,22 @@ function makeDefault(kind: ConditionKind): ConditionNode {
 		case "trend":
 			return { type: "trend", trend: { bucket: "falling" } };
 		case "time_of_day":
+			// Stamp the browser's IANA timezone at creation time so the saved rule JSON is
+			// self-documenting and survives a future tenant tz change. The backend
+			// evaluator also falls back to the tenant tz when this is null, but writing
+			// it here keeps "what hour did the rule author mean?" answerable from the
+			// rule payload alone. The Intl guard keeps server-rendered call sites safe
+			// even though defaultPayload is currently only invoked from event handlers.
 			return {
 				type: "time_of_day",
-				time_of_day: { from: "22:00", to: "06:00" },
+				time_of_day: {
+					from: "22:00",
+					to: "06:00",
+					timezone:
+						typeof Intl !== "undefined"
+							? Intl.DateTimeFormat().resolvedOptions().timeZone
+							: undefined,
+				},
 			};
 		case "iob":
 			return { type: "iob", iob: { operator: ">=", value: 1 } };

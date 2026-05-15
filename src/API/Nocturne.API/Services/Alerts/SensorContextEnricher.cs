@@ -198,12 +198,30 @@ internal sealed class SensorContextEnricher : ISensorContextEnricher
     {
         var enriched = baseCtx;
 
+        // Tenant timezone must be resolved before the glucose-bucket branch because the
+        // schedule lookup converts `now` (UTC) into the tenant's local wall-clock to pick
+        // the right TargetRangeEntry. RuleDataNeeds co-sets NeedsTenantTimeZone whenever
+        // NeedsGlucoseBucket is set, so a tenant whose only rule needs the bucket still
+        // pays for this lookup — but it's a single cached settings read.
+        if (needs.NeedsTenantTimeZone)
+        {
+            try
+            {
+                var tz = await _deps.TherapySettings.GetTimezoneAsync(ct: ct);
+                enriched = enriched with { TenantTimeZoneId = tz };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to resolve tenant timezone; time-of-day/day-of-week/glucose-bucket evaluators will fall back to UTC");
+            }
+        }
+
         // Glucose bucket — resolve target range schedule for the active profile and apply
         // boundaries from the matching TargetRangeEntry. Falls back to clinical defaults
         // (54/70/140/250) when the schedule has nulls or is missing entirely.
         if (needs.NeedsGlucoseBucket && enriched.LatestValue is { } latestValue)
         {
-            var bucket = await ResolveGlucoseBucketAsync(latestValue, now, ct);
+            var bucket = await ResolveGlucoseBucketAsync(latestValue, now, enriched.TenantTimeZoneId, ct);
             enriched = enriched with { GlucoseBucket = bucket };
         }
 
@@ -223,19 +241,6 @@ internal sealed class SensorContextEnricher : ISensorContextEnricher
                     lastBolusAt = at;
             }
             enriched = enriched with { LastCarbAt = lastCarbAt, LastBolusAt = lastBolusAt };
-        }
-
-        if (needs.NeedsTenantTimeZone)
-        {
-            try
-            {
-                var tz = await _deps.TherapySettings.GetTimezoneAsync(ct: ct);
-                enriched = enriched with { TenantTimeZoneId = tz };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to resolve tenant timezone; day-of-week leaf will fall back to UTC");
-            }
         }
 
         if (needs.ReferencedPumpStates.Count > 0)
@@ -278,11 +283,16 @@ internal sealed class SensorContextEnricher : ISensorContextEnricher
     /// <summary>
     /// Resolves the glucose bucket for <paramref name="glucoseMgdl"/> at <paramref name="at"/>
     /// by loading the active <see cref="Nocturne.Core.Models.V4.TargetRangeSchedule"/>, finding
-    /// the time-of-day entry, and applying <see cref="GlucoseBucketResolver.Compute"/>.
-    /// Returns the InRange-default bucket assignment when no schedule exists.
+    /// the entry active at the tenant's local wall-clock time, and applying
+    /// <see cref="GlucoseBucketResolver.Compute"/>. Falls back to the InRange-default bucket
+    /// assignment when no schedule exists. <paramref name="tenantTimeZoneId"/> is the IANA
+    /// (or Windows-mapped) id from <see cref="SensorContext.TenantTimeZoneId"/>; null or
+    /// unparseable falls back to treating <paramref name="at"/> as the local wall-clock — the
+    /// pre-fix behaviour, preserved so a tenant with no timezone configured doesn't lose
+    /// bucket resolution entirely.
     /// </summary>
     private async Task<GlucoseBucket?> ResolveGlucoseBucketAsync(
-        decimal glucoseMgdl, DateTime at, CancellationToken ct)
+        decimal glucoseMgdl, DateTime at, string? tenantTimeZoneId, CancellationToken ct)
     {
         var atMills = new DateTimeOffset(DateTime.SpecifyKind(at, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
         var profileName = await _deps.ActiveProfileResolver.GetActiveProfileNameAsync(atMills, ct) ?? "Default";
@@ -294,11 +304,28 @@ internal sealed class SensorContextEnricher : ISensorContextEnricher
             return GlucoseBucketResolver.Compute(glucoseMgdl, 70m, 180m, null, null, null);
         }
 
-        // Pick the entry active at the given local time-of-day. This duplicates a tiny slice of
-        // ScheduleResolution.FindRangeAtTime but returns the entry itself so we can read the
-        // VeryLow/TightHigh/VeryHigh fields that the (Low,High)-only helper drops on the floor.
+        // Pick the entry active at the tenant's local time-of-day. `at` is always UTC; the
+        // schedule's time-of-day entries are local wall-clock so we must convert. An
+        // unparseable tenant tz swallows to UTC (matches DayOfWeekEvaluator's stance) so a
+        // misconfigured tenant tz field still produces a deterministic bucket rather than no
+        // bucket at all.
+        var atUtc = DateTime.SpecifyKind(at, DateTimeKind.Utc);
+        var atLocal = atUtc;
+        if (!string.IsNullOrEmpty(tenantTimeZoneId))
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById(tenantTimeZoneId);
+                atLocal = TimeZoneInfo.ConvertTimeFromUtc(atUtc, tz);
+            }
+            catch
+            {
+                atLocal = atUtc;
+            }
+        }
+
         var sortedEntries = schedule.Entries.OrderBy(e => e.TimeAsSeconds ?? 0).ToList();
-        var localTime = TimeOnly.FromDateTime(at);
+        var localTime = TimeOnly.FromDateTime(atLocal);
         var secondsFromMidnight = (localTime.Hour * 3600) + (localTime.Minute * 60) + localTime.Second;
         var active = sortedEntries[0];
         foreach (var entry in sortedEntries)
