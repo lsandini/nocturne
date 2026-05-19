@@ -79,6 +79,32 @@ try
     File.Copy(envExampleOutputPath, Path.Combine(deployPortainerDir, ".env.example"), overwrite: true);
     Console.WriteLine($"[publish-release] Updated deploy/portainer/ (commit these before tagging)");
 
+    // Generate Mermaid architecture diagrams.
+    // The mermaid-publish step is registered in the AppHost's publish pipeline
+    // (dependsOn: publish-compose, requiredBy: publish), so it runs automatically
+    // alongside the compose artifact. We run a separate publish into docs/diagrams/
+    // so the .mmd files land in the repo for commit.
+    Console.WriteLine("[publish-release] Generating Mermaid architecture diagrams...");
+    var diagramsDir = Path.Combine(repoRoot, "docs", "diagrams");
+    Directory.CreateDirectory(diagramsDir);
+
+    exitCode = RunProcess("aspire", [
+        "publish",
+        "--project", appHostDir,
+        "--output-path", diagramsDir,
+        "--no-build",
+        "--non-interactive"
+    ], aspireEnv);
+
+    if (exitCode != 0)
+    {
+        Console.Error.WriteLine("[publish-release] ERROR: mermaid publisher failed");
+        return 1;
+    }
+
+    Console.WriteLine($"[publish-release] Wrote {Path.Combine(diagramsDir, "published-routing.mmd")}");
+    Console.WriteLine($"[publish-release] Wrote {Path.Combine(diagramsDir, "published-services.mmd")}");
+
     Console.WriteLine();
     Console.WriteLine("[publish-release] Done! Output files:");
     Console.WriteLine($"  {composeOutputPath}");
