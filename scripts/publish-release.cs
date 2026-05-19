@@ -105,6 +105,12 @@ try
     Console.WriteLine($"[publish-release] Wrote {Path.Combine(diagramsDir, "published-routing.mmd")}");
     Console.WriteLine($"[publish-release] Wrote {Path.Combine(diagramsDir, "published-services.mmd")}");
 
+    // Remove compose artifacts that the full pipeline writes alongside the .mmd files
+    foreach (var artifact in Directory.GetFiles(diagramsDir).Where(f => !f.EndsWith(".mmd")))
+    {
+        File.Delete(artifact);
+    }
+
     Console.WriteLine();
     Console.WriteLine("[publish-release] Done! Output files:");
     Console.WriteLine($"  {composeOutputPath}");
