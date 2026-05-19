@@ -7,6 +7,7 @@ using Aspire.Hosting.Yarp.Transforms;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Nocturne.Aspire.Host;
+using Nocturne.Aspire.Host.Publishing;
 using Nocturne.Aspire.Hosting;
 using Nocturne.Aspire.Scalar;
 using Nocturne.Core.Constants;
@@ -677,6 +678,8 @@ class Program
                 .WithEnvironment("WATCHTOWER_REVIVE_STOPPED", "false")
                 .PublishAsDockerComposeService((_, _) => { });
         }
+
+        builder.AddMermaidDiagramPublisher();
 
         var app = builder.Build();
         await app.RunAsync();
