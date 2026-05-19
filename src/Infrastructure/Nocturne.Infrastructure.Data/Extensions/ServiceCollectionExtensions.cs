@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -331,4 +333,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITreatmentFoodRepository, TreatmentFoodRepository>();
         return services;
     }
+
+    /// <summary>
+    /// Persists Data Protection keys to <see cref="NocturneDbContext"/> so the key ring
+    /// survives container restarts. Call this on the builder returned by
+    /// <c>services.AddDataProtection()</c>.
+    /// </summary>
+    public static IDataProtectionBuilder PersistKeysToNocturneDb(
+        this IDataProtectionBuilder builder)
+        => builder.PersistKeysToDbContext<NocturneDbContext>();
 }

@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Text.Json;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Nocturne.Core.Contracts.Audit;
 using Nocturne.Core.Models;
@@ -13,7 +14,7 @@ namespace Nocturne.Infrastructure.Data;
 /// Entity Framework DbContext for PostgreSQL database operations
 /// Multitenant architecture with per-tenant global query filters
 /// </summary>
-public class NocturneDbContext : DbContext
+public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 {
     /// <summary>
     /// Initializes a new instance of the NocturneDbContext class
@@ -143,6 +144,12 @@ public class NocturneDbContext : DbContext
     /// Gets or sets the TotpCredentials table for TOTP two-factor authentication
     /// </summary>
     public DbSet<TotpCredentialEntity> TotpCredentials { get; set; }
+
+    /// <summary>
+    /// ASP.NET Core Data Protection key ring — persisted so keys survive container restarts.
+    /// Not tenant-scoped; no RLS.
+    /// </summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys { get; set; }
 
     /// <summary>
     /// Gets or sets the DataSourceMetadata table for user preferences about data sources
