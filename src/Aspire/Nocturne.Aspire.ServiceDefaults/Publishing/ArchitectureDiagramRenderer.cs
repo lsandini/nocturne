@@ -62,21 +62,27 @@ public static class ArchitectureDiagramRenderer
         var representedNames = new HashSet<string>(model.Services.Select(s => s.Name));
         representedNames.Add("internet");
 
-        // Edge node ID: web services connect via their BFF sub-service
-        string EdgeId(string name) =>
-            webNames.Contains(name) ? NodeId(name) + "_bff" : NodeId(name);
+        // Edge node IDs:
+        // - Outbound from web service → BFF (the server process makes the call)
+        // - Inbound to web service → Frontend (the user-facing entry point receives the request)
+        string EdgeFromId(string name) => webNames.Contains(name) ? NodeId(name) + "_bff" : NodeId(name);
+        string EdgeToId(string name)   => webNames.Contains(name) ? NodeId(name) + "_frontend" : NodeId(name);
 
         // Internet → gateway
         var gateway = model.Services.FirstOrDefault(s => s.Kind == ServiceKind.Gateway);
         if (gateway != null)
-            sb.AppendLine($"    internet:R --> L:{EdgeId(gateway.Name)}");
+            sb.AppendLine($"    internet:R --> L:{EdgeToId(gateway.Name)}");
 
         // Reference edges only — both endpoints must be represented services (WaitFor adds noise)
         foreach (var edge in model.Edges.Where(e =>
             e.Kind == EdgeKind.Reference &&
             representedNames.Contains(e.From) &&
             representedNames.Contains(e.To)))
-            sb.AppendLine($"    {EdgeId(edge.From)}:R --> L:{EdgeId(edge.To)}");
+            sb.AppendLine($"    {EdgeFromId(edge.From)}:R --> L:{EdgeToId(edge.To)}");
+
+        // Within each web group: frontend routes inbound requests through to the BFF
+        foreach (var webSvc in model.Services.Where(s => s.Kind == ServiceKind.Web))
+            sb.AppendLine($"    {NodeId(webSvc.Name)}_frontend:R --> L:{NodeId(webSvc.Name)}_bff");
 
         return sb.ToString().TrimEnd();
     }

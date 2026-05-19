@@ -93,11 +93,36 @@ public class ArchitectureDiagramRendererTests
     [Fact]
     public void Render_EdgesFromWebServiceOriginateFromBff()
     {
-        // The test model has nocturne-web → nocturne-api; the BFF is the outbound side
+        // The test model has nocturne-web → nocturne-api; outbound side is the BFF
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
         result.Should().Contain("nocturne_web_bff:R --> L:nocturne_api");
         // Plain web node ID must not appear as an edge endpoint
         result.Should().NotMatchRegex(@"nocturne_web:R -->|-->\s+L:nocturne_web\b");
+    }
+
+    [Fact]
+    public void Render_InboundEdgesToWebServiceTargetFrontend()
+    {
+        var model = new AspirePublishModel(
+            Services:
+            [
+                new("gateway", ServiceKind.Gateway, [], [new("8080", "5000")]),
+                new("nocturne-web", ServiceKind.Web, ["8000"], []),
+            ],
+            Edges: [new("gateway", "nocturne-web", EdgeKind.Reference)],
+            Routes: []
+        );
+
+        var result = ArchitectureDiagramRenderer.Render(model);
+        result.Should().Contain("gateway:R --> L:nocturne_web_frontend");
+        result.Should().NotContain("gateway:R --> L:nocturne_web_bff");
+    }
+
+    [Fact]
+    public void Render_WebGroupHasFrontendToBffEdge()
+    {
+        var result = ArchitectureDiagramRenderer.Render(BuildModel());
+        result.Should().Contain("nocturne_web_frontend:R --> L:nocturne_web_bff");
     }
 
     [Fact]
