@@ -125,7 +125,8 @@ else
 builder.Services.AddDiscrepancyAnalysisRepository();
 builder.Services.AddAlertRepositories();
 
-builder.Services.AddDataProtection();
+builder.Services.AddDataProtection()
+    .PersistKeysToNocturneDb();
 
 // Add compatibility proxy services
 builder.Services.AddCompatibilityProxyServices(builder.Configuration);
@@ -395,6 +396,8 @@ app.MapHub<HomeAssistantHub>("/hubs/home-assistant");
 // Serve OpenAPI specs at /openapi/{documentName}.json
 app.MapOpenApi();
 
+var scalarCss = app.Configuration["SCALAR_CUSTOM_CSS"];
+
 // Scalar interactive API docs at /scalar/{documentName}
 app.MapScalarApiReference(options =>
 {
@@ -403,6 +406,9 @@ app.MapScalarApiReference(options =>
     options.AddDocument("nocturne", "Nocturne API", isDefault: true);
     options.AddDocument("nightscout", "Nightscout API");
     options.AddHeadContent(MermaidLazyLoader.HeadContent);
+    if (!string.IsNullOrEmpty(scalarCss))
+        options.WithCustomCss(scalarCss);
+    options.EnablePersistentAuthentication();
 
     // Pre-configure authentication so Scalar's "Authorize" UI works out of the box.
     options
