@@ -12,8 +12,6 @@ flowchart LR
             nocturne_web_bff["BFF"]
         end
         nocturne_postgres_server[("nocturne-postgres-server\n:5432")]
-        scalar["scalar"]
-        scalar_bootstrap["scalar-bootstrap"]
     end
 
     Internet --> gateway
@@ -21,10 +19,6 @@ flowchart LR
     nocturne_api --> nocturne_web_bff
     nocturne_web_bff --> nocturne_api
     nocturne_web_bff --> nocturne_postgres_server
-    scalar --> nocturne_api
-    scalar_bootstrap --> scalar
     gateway --> nocturne_api
     gateway --> nocturne_web_frontend
-    gateway --> scalar_bootstrap
-    gateway --> scalar
     nocturne_web_frontend --> nocturne_web_bff
