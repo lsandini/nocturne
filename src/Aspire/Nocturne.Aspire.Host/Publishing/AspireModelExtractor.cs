@@ -4,6 +4,7 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Yarp;
 using Nocturne.Aspire.Publishing;
 using Yarp.ReverseProxy.Configuration;
+using PublishYarpRoute = Nocturne.Aspire.Publishing.YarpRoute;
 
 namespace Nocturne.Aspire.Host.Publishing;
 
@@ -86,7 +87,7 @@ internal static class AspireModelExtractor
         return edges;
     }
 
-    private static IReadOnlyList<YarpRoute> ExtractYarpRoutes(DistributedApplicationModel model)
+    private static IReadOnlyList<PublishYarpRoute> ExtractYarpRoutes(DistributedApplicationModel model)
     {
         var yarp = model.Resources.OfType<YarpResource>().FirstOrDefault();
         if (yarp is null) return [];
@@ -102,7 +103,7 @@ internal static class AspireModelExtractor
         var routesList = routesProp.GetValue(yarp) as IEnumerable;
         if (routesList is null) return [];
 
-        var result = new List<YarpRoute>();
+        var result = new List<PublishYarpRoute>();
         var routeConfigProp = default(PropertyInfo);
 
         foreach (var route in routesList)
@@ -120,7 +121,7 @@ internal static class AspireModelExtractor
                 ? rc.ClusterId["cluster_".Length..]
                 : rc.ClusterId;
 
-            result.Add(new YarpRoute(path, serviceName));
+            result.Add(new PublishYarpRoute(path, serviceName));
         }
 
         return result;

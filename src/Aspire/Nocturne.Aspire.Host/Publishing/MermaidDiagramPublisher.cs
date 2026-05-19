@@ -1,54 +1,55 @@
+#pragma warning disable ASPIREPIPELINES001
+#pragma warning disable ASPIREPIPELINES004
+
 using Aspire.Hosting;
-using Aspire.Hosting.ApplicationModel;
-using Aspire.Hosting.Publishing;
+using Aspire.Hosting.Pipelines;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using Nocturne.Aspire.Publishing;
 
 namespace Nocturne.Aspire.Host.Publishing;
 
-internal sealed class MermaidDiagramPublisher(IOptions<PublishingOptions> options)
-    : IDistributedApplicationPublisher
-{
-    public async Task PublishAsync(
-        DistributedApplicationModel model,
-        CancellationToken cancellationToken)
-    {
-        var outputPath = options.Value.OutputPath
-            ?? throw new InvalidOperationException(
-                "--output-path is required for the mermaid publisher");
-
-        Directory.CreateDirectory(outputPath);
-
-        var publishModel = AspireModelExtractor.Extract(model);
-
-        var routing = RoutingDiagramRenderer.Render(publishModel);
-        var architecture = ArchitectureDiagramRenderer.Render(publishModel);
-
-        await File.WriteAllTextAsync(
-            Path.Combine(outputPath, "published-routing.mmd"),
-            routing,
-            cancellationToken);
-
-        await File.WriteAllTextAsync(
-            Path.Combine(outputPath, "published-services.mmd"),
-            architecture,
-            cancellationToken);
-
-        Console.WriteLine($"[mermaid-publisher] Wrote published-routing.mmd");
-        Console.WriteLine($"[mermaid-publisher] Wrote published-services.mmd");
-        Console.WriteLine($"[mermaid-publisher] Output: {outputPath}");
-    }
-}
-
 public static class MermaidDiagramPublisherExtensions
 {
+    /// <summary>
+    /// Registers a publish pipeline step that writes Mermaid architecture diagrams
+    /// (published-routing.mmd and published-services.mmd) to the publish output
+    /// directory alongside the Docker Compose artifact.
+    /// </summary>
     public static IDistributedApplicationBuilder AddMermaidDiagramPublisher(
         this IDistributedApplicationBuilder builder)
     {
-        builder.Services.TryAddKeyedSingleton<IDistributedApplicationPublisher,
-            MermaidDiagramPublisher>("mermaid");
+        builder.Pipeline.AddStep(
+            name: "mermaid-publish",
+            action: async ctx =>
+            {
+                var outputService = ctx.Services.GetRequiredService<IPipelineOutputService>();
+                var outputPath = outputService.GetOutputDirectory();
+
+                Directory.CreateDirectory(outputPath);
+
+                var publishModel = AspireModelExtractor.Extract(ctx.Model);
+
+                var routing = RoutingDiagramRenderer.Render(publishModel);
+                var architecture = ArchitectureDiagramRenderer.Render(publishModel);
+
+                await File.WriteAllTextAsync(
+                    Path.Combine(outputPath, "published-routing.mmd"),
+                    routing,
+                    ctx.CancellationToken);
+
+                await File.WriteAllTextAsync(
+                    Path.Combine(outputPath, "published-services.mmd"),
+                    architecture,
+                    ctx.CancellationToken);
+
+                ctx.Logger.LogInformation("[mermaid-publisher] Wrote published-routing.mmd");
+                ctx.Logger.LogInformation("[mermaid-publisher] Wrote published-services.mmd");
+                ctx.Logger.LogInformation("[mermaid-publisher] Output: {OutputPath}", outputPath);
+            },
+            dependsOn: "publish-compose",
+            requiredBy: WellKnownPipelineSteps.Publish);
+
         return builder;
     }
 }
