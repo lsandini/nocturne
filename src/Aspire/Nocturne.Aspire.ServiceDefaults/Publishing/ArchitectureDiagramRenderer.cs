@@ -69,16 +69,27 @@ public static class ArchitectureDiagramRenderer
             .Select(s => s.Name)
             .ToHashSet();
 
+        var serviceKinds = model.Services.ToDictionary(s => s.Name, s => s.Kind);
+
         // Edge node IDs:
         // - Outbound from web service → BFF (the server process makes the call)
-        // - Inbound to web service → Frontend (the user-facing entry point receives the request)
-        string EdgeFromId(string name) => webNames.Contains(name) ? NodeId(name) + "_bff" : NodeId(name);
-        string EdgeToId(string name)   => webNames.Contains(name) ? NodeId(name) + "_frontend" : NodeId(name);
+        // - Inbound to web service from Gateway → Frontend (user browser traffic enters here)
+        // - Inbound to web service from any other service → BFF (server-to-server calls)
+        string EdgeFromId(string name) =>
+            webNames.Contains(name) ? NodeId(name) + "_bff" : NodeId(name);
+
+        string EdgeToId(string fromName, string toName)
+        {
+            if (!webNames.Contains(toName)) return NodeId(toName);
+            return serviceKinds.TryGetValue(fromName, out var k) && k == ServiceKind.Gateway
+                ? NodeId(toName) + "_frontend"
+                : NodeId(toName) + "_bff";
+        }
 
         // Internet → gateway
         var gateway = model.Services.FirstOrDefault(s => s.Kind == ServiceKind.Gateway);
         if (gateway != null)
-            sb.AppendLine($"    internet:R --> L:{EdgeToId(gateway.Name)}");
+            sb.AppendLine($"    internet:R --> L:{NodeId(gateway.Name)}");
 
         // Reference edges only — both endpoints must be represented, non-Container services
         foreach (var edge in model.Edges.Where(e =>
@@ -87,7 +98,7 @@ public static class ArchitectureDiagramRenderer
             representedNames.Contains(e.To) &&
             !containerNames.Contains(e.From) &&
             !containerNames.Contains(e.To)))
-            sb.AppendLine($"    {EdgeFromId(edge.From)}:R --> L:{EdgeToId(edge.To)}");
+            sb.AppendLine($"    {EdgeFromId(edge.From)}:R --> L:{EdgeToId(edge.From, edge.To)}");
 
         // Within each web group: frontend routes inbound requests through to the BFF
         foreach (var webSvc in model.Services.Where(s => s.Kind == ServiceKind.Web))

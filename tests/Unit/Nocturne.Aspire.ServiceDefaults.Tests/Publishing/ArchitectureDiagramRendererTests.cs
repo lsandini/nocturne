@@ -101,7 +101,7 @@ public class ArchitectureDiagramRendererTests
     }
 
     [Fact]
-    public void Render_InboundEdgesToWebServiceTargetFrontend()
+    public void Render_GatewayToWebTargetsFrontend()
     {
         var model = new AspirePublishModel(
             Services:
@@ -116,6 +116,26 @@ public class ArchitectureDiagramRendererTests
         var result = ArchitectureDiagramRenderer.Render(model);
         result.Should().Contain("gateway:R --> L:nocturne_web_frontend");
         result.Should().NotContain("gateway:R --> L:nocturne_web_bff");
+    }
+
+    [Fact]
+    public void Render_NonGatewayToWebTargetsBff()
+    {
+        // Server-to-server calls (e.g. API posting alerts to SvelteKit) target the BFF,
+        // not the client bundle.
+        var model = new AspirePublishModel(
+            Services:
+            [
+                new("nocturne-api", ServiceKind.Api, ["8080"], []),
+                new("nocturne-web", ServiceKind.Web, ["8000"], []),
+            ],
+            Edges: [new("nocturne-api", "nocturne-web", EdgeKind.Reference)],
+            Routes: []
+        );
+
+        var result = ArchitectureDiagramRenderer.Render(model);
+        result.Should().Contain("nocturne_api:R --> L:nocturne_web_bff");
+        result.Should().NotContain("nocturne_api:R --> L:nocturne_web_frontend");
     }
 
     [Fact]
