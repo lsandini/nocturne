@@ -17,10 +17,6 @@ architecture-beta
     nocturne_api:R --> L:nocturne_web_frontend
     nocturne_web_bff:R --> L:nocturne_api
     nocturne_web_bff:R --> L:nocturne_postgres_server
-    scalar:R --> L:nocturne_api
-    scalar_bootstrap:R --> L:scalar
     gateway:R --> L:nocturne_api
     gateway:R --> L:nocturne_web_frontend
-    gateway:R --> L:scalar_bootstrap
-    gateway:R --> L:scalar
     nocturne_web_frontend:R --> L:nocturne_web_bff

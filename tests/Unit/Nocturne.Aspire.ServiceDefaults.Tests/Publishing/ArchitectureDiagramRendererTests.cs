@@ -126,6 +126,16 @@ public class ArchitectureDiagramRendererTests
     }
 
     [Fact]
+    public void Render_ContainerServicesHaveNoEdges()
+    {
+        // watchtower is ServiceKind.Container in the test model — it should appear as a node
+        // but have no edge connections, so it doesn't obscure the core topology.
+        var result = ArchitectureDiagramRenderer.Render(BuildModel());
+        result.Should().Contain("watchtower");
+        result.Should().NotMatchRegex(@"watchtower:|\bL:watchtower\b");
+    }
+
+    [Fact]
     public void Render_EdgesBothEndpointsMustBeDeclaredServices()
     {
         // Model with edges where one endpoint is not a declared service (simulates a
