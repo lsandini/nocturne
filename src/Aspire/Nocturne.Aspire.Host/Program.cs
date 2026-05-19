@@ -11,7 +11,6 @@ using Nocturne.Aspire.Host.Publishing;
 using Nocturne.Aspire.Hosting;
 using Nocturne.Aspire.Scalar;
 using Nocturne.Core.Constants;
-using Scalar.Aspire;
 using Yarp.ReverseProxy.Transforms;
 
 class Program
@@ -26,15 +25,11 @@ class Program
         // ------------------------------------------------------------------
         var includeDashboard = builder.Configuration.GetValue(
             "Aspire:OptionalServices:AspireDashboard:Enabled",
-            true
-        );
-        var includeScalar = builder.Configuration.GetValue(
-            "Aspire:OptionalServices:Scalar:Enabled",
-            true
+            false
         );
         var enableWatchtower = builder.Configuration.GetValue(
             "Aspire:OptionalServices:Watchtower:Enabled",
-            false
+            true
         );
 
         var compose = builder.AddDockerComposeEnvironment("compose");
@@ -121,9 +116,9 @@ class Program
                 // ownership on the wrong database. Aspire's AddDatabase below
                 // is a no-op once the database already exists.
                 .WithEnvironment("POSTGRES_DB", dbName)
-                .WithEnvironment("NOCTURNE_MIGRATOR_PASSWORD", postgresMigratorPassword)
-                .WithEnvironment("NOCTURNE_APP_PASSWORD", postgresAppPassword)
-                .WithEnvironment("NOCTURNE_WEB_PASSWORD", postgresWebPassword);
+                .WithEnvironment("POSTGRES_MIGRATOR_PASSWORD", postgresMigratorPassword)
+                .WithEnvironment("POSTGRES_APP_PASSWORD", postgresAppPassword)
+                .WithEnvironment("POSTGRES_WEB_PASSWORD", postgresWebPassword);
 
             if (persistence == PersistenceMode.Persistent)
             {
@@ -412,64 +407,9 @@ class Program
 
         // API needs WEB_URL to POST chat bot alert dispatches to the SvelteKit app
         api.WithEnvironment("WEB_URL", web.GetEndpoint("http"));
+        api.WithEnvironment("SCALAR_CUSTOM_CSS", NocturneScalarTheme.Build(solutionRoot));
 
         var webEndpoints = (IResourceBuilder<IResourceWithEndpoints>)web;
-
-        // ------------------------------------------------------------------
-        // Scalar API reference (optional)
-        // ------------------------------------------------------------------
-        IResourceBuilder<IResourceWithEndpoints>? scalar = null;
-        IResourceBuilder<IResourceWithEndpoints>? scalarBootstrap = null;
-        if (includeScalar)
-        {
-            var scalarResource = builder
-                .AddScalarApiReference(
-                    "scalar",
-                    options =>
-                    {
-                        options.WithTheme(ScalarTheme.Mars);
-                        options.WithCustomCss(NocturneScalarTheme.Build(solutionRoot));
-                        options.EnablePersistentAuthentication();
-                        options.AddPreferredSecuritySchemes("oauth2");
-                        options.AddAuthorizationCodeFlow(
-                            "oauth2",
-                            flow =>
-                            {
-                                flow.WithAuthorizationUrl("/api/oauth/authorize");
-                                flow.WithTokenUrl("/api/oauth/token");
-                                flow.WithPkce(Pkce.Sha256);
-                                flow.WithSelectedScopes(["*"]);
-                            }
-                        );
-                    }
-                )
-                .WithApiReference(
-                    api,
-                    options =>
-                    {
-                        options
-                            .AddDocument("nocturne", "Nocturne API")
-                            .AddDocument("nightscout", "Nightscout API")
-                            .WithOpenApiRoutePattern("/openapi/{documentName}.json");
-                    }
-                );
-
-            scalar = scalarResource;
-
-            // Tiny ASP.NET reverse proxy that fronts the Scalar.Aspire
-            // sidecar and splices MermaidLazyLoader.HeadContent into the
-            // Scalar HTML head. Needed because Scalar.Aspire 0.8.x has no
-            // head-content hook and Aspire.Hosting.Yarp can't do body
-            // rewriting (JSON-config transforms only).
-            scalarBootstrap = builder
-                .AddProject<Projects.Nocturne_Aspire_ScalarBootstrap>(
-                    "scalar-bootstrap",
-                    launchProfileName: null
-                )
-                .WithHttpEndpoint(name: "http")
-                .WithReference(scalarResource)
-                .WaitFor(scalarResource);
-        }
 
         // ------------------------------------------------------------------
         // YARP Gateway — single external HTTPS endpoint fronting all services.
@@ -553,28 +493,11 @@ class Program
                 yarp.AddRoute("/auth/bot/{**catch-all}", webEndpoints.GetEndpoint("http"))
                     .WithTransformXForwarded("X-Forwarded-", xForwardedAction);
 
-                // API docs (Scalar UI)
-                // When the Scalar Aspire container is running (dev with OAuth PKCE),
-                // proxy to it. Otherwise, the API serves Scalar natively.
-                if (scalarBootstrap != null && scalar != null)
-                {
-                    // /scalar/* goes via the bootstrap (HTML rewriter), which
-                    // forwards to the Scalar sidecar. /scalar-proxy/* skips
-                    // the rewriter — those are runtime API requests proxied
-                    // by Scalar back to the API and can be large.
-                    yarp.AddRoute("/scalar/{**catch-all}", scalarBootstrap.GetEndpoint("http"))
-                        .WithTransformPathRemovePrefix("/scalar")
-                        .WithTransformXForwarded("X-Forwarded-", xForwardedAction);
-                    yarp.AddRoute("/scalar-proxy/{**catch-all}", scalar.GetEndpoint("http"))
-                        .WithTransformXForwarded("X-Forwarded-", xForwardedAction);
-                }
-                else
-                {
-                    yarp.AddRoute("/scalar", api.GetEndpoint("http"))
-                        .WithTransformXForwarded("X-Forwarded-", xForwardedAction);
-                    yarp.AddRoute("/scalar/{**catch-all}", api.GetEndpoint("http"))
-                        .WithTransformXForwarded("X-Forwarded-", xForwardedAction);
-                }
+                // API docs (Scalar UI) — served directly by the API via Scalar.AspNetCore
+                yarp.AddRoute("/scalar", api.GetEndpoint("http"))
+                    .WithTransformXForwarded("X-Forwarded-", xForwardedAction);
+                yarp.AddRoute("/scalar/{**catch-all}", api.GetEndpoint("http"))
+                    .WithTransformXForwarded("X-Forwarded-", xForwardedAction);
                 yarp.AddRoute("/openapi/{**catch-all}", api.GetEndpoint("http"))
                     .WithTransformXForwarded("X-Forwarded-", xForwardedAction);
 
