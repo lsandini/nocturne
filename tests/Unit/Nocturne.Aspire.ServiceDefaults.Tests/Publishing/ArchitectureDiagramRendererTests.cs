@@ -25,33 +25,32 @@ public class ArchitectureDiagramRendererTests
     );
 
     [Fact]
-    public void Render_StartsWithArchitectureBeta()
+    public void Render_StartsWithFlowchartLR()
     {
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
-        result.Should().StartWith("architecture-beta");
+        result.Should().StartWith("flowchart LR");
     }
 
     [Fact]
-    public void Render_ContainsExternalAndInternalGroups()
+    public void Render_ContainsExternalAndInternalSubgraphs()
     {
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
-        result.Should().Contain("group external");
-        result.Should().Contain("group internal");
+        result.Should().Contain("subgraph ext");
+        result.Should().Contain("subgraph net");
     }
 
     [Fact]
-    public void Render_GatewayDeclaredInExternalGroup()
+    public void Render_GatewayDeclaredInExternalSubgraph()
     {
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
-        // architecture-beta service declaration: "service <id>(<icon>)[<label>] in external"
-        result.Should().MatchRegex(@"service\s+\S+\s*\([^)]+\)\s*\[[^\]]+\]\s+in external");
+        result.Should().MatchRegex(@"subgraph ext[^}]+gateway");
     }
 
     [Fact]
-    public void Render_DatabaseUsesDataBaseIcon()
+    public void Render_DatabaseUsesCylinderShape()
     {
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
-        result.Should().Contain("(database)");
+        result.Should().Contain("nocturne_postgres_server[(");
     }
 
     [Fact]
@@ -76,7 +75,7 @@ public class ArchitectureDiagramRendererTests
     public void Render_InternetNodePresent()
     {
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
-        result.Should().Contain("internet");
+        result.Should().Contain("Internet");
     }
 
     [Fact]
@@ -86,8 +85,8 @@ public class ArchitectureDiagramRendererTests
         result.Should().Contain("nocturne_web_group");
         result.Should().Contain("nocturne_web_bff");
         result.Should().Contain("nocturne_web_frontend");
-        // Should NOT emit a plain service node for the web service
-        result.Should().NotMatchRegex(@"service nocturne_web\(");
+        // Should NOT emit a plain node for the web service itself
+        result.Should().NotMatchRegex(@"(?m)^\s+nocturne_web\[");
     }
 
     [Fact]
@@ -95,9 +94,8 @@ public class ArchitectureDiagramRendererTests
     {
         // The test model has nocturne-web → nocturne-api; outbound side is the BFF
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
-        result.Should().Contain("nocturne_web_bff:R --> L:nocturne_api");
-        // Plain web node ID must not appear as an edge endpoint
-        result.Should().NotMatchRegex(@"nocturne_web:R -->|-->\s+L:nocturne_web\b");
+        result.Should().Contain("nocturne_web_bff --> nocturne_api");
+        result.Should().NotMatchRegex(@"nocturne_web -->|--> nocturne_web\b");
     }
 
     [Fact]
@@ -114,8 +112,8 @@ public class ArchitectureDiagramRendererTests
         );
 
         var result = ArchitectureDiagramRenderer.Render(model);
-        result.Should().Contain("gateway:R --> L:nocturne_web_frontend");
-        result.Should().NotContain("gateway:R --> L:nocturne_web_bff");
+        result.Should().Contain("gateway --> nocturne_web_frontend");
+        result.Should().NotContain("gateway --> nocturne_web_bff");
     }
 
     [Fact]
@@ -134,25 +132,24 @@ public class ArchitectureDiagramRendererTests
         );
 
         var result = ArchitectureDiagramRenderer.Render(model);
-        result.Should().Contain("nocturne_api:R --> L:nocturne_web_bff");
-        result.Should().NotContain("nocturne_api:R --> L:nocturne_web_frontend");
+        result.Should().Contain("nocturne_api --> nocturne_web_bff");
+        result.Should().NotContain("nocturne_api --> nocturne_web_frontend");
     }
 
     [Fact]
     public void Render_WebGroupHasFrontendToBffEdge()
     {
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
-        result.Should().Contain("nocturne_web_frontend:R --> L:nocturne_web_bff");
+        result.Should().Contain("nocturne_web_frontend --> nocturne_web_bff");
     }
 
     [Fact]
     public void Render_ContainerServicesHaveNoEdges()
     {
-        // watchtower is ServiceKind.Container in the test model — it should appear as a node
-        // but have no edge connections, so it doesn't obscure the core topology.
+        // watchtower is ServiceKind.Container — it should appear as a node but have no edges
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
         result.Should().Contain("watchtower");
-        result.Should().NotMatchRegex(@"watchtower:|\bL:watchtower\b");
+        result.Should().NotMatchRegex(@"watchtower -->|--> watchtower\b");
     }
 
     [Fact]

@@ -1,22 +1,26 @@
-architecture-beta
-    group external(cloud)[External]
-    group internal(server)[aspire network]
+flowchart LR
+    Internet((Internet))
 
-    service internet(cloud)[Internet] in external
-    service nocturne_postgres_server(database)[nocturne postgres server] in internal
-    service nocturne_api(server)[nocturne api] in internal
-    group nocturne_web_group(server)[nocturne web] in internal
-    service nocturne_web_bff(server)[BFF] in nocturne_web_group
-    service nocturne_web_frontend(disk)[Frontend] in nocturne_web_group
-    service scalar(disk)[scalar] in internal
-    service scalar_bootstrap(server)[scalar bootstrap] in internal
-    service gateway(server)[gateway 8080] in external
+    subgraph ext["External"]
+        gateway["gateway\n:8080"]
+    end
 
-    internet:R --> L:gateway
-    nocturne_api:R --> L:nocturne_postgres_server
-    nocturne_api:R --> L:nocturne_web_bff
-    nocturne_web_bff:R --> L:nocturne_api
-    nocturne_web_bff:R --> L:nocturne_postgres_server
-    gateway:R --> L:nocturne_api
-    gateway:R --> L:nocturne_web_frontend
-    nocturne_web_frontend:R --> L:nocturne_web_bff
+    subgraph net["aspire network"]
+        nocturne_api["nocturne-api"]
+        subgraph nocturne_web_group["nocturne-web"]
+            nocturne_web_frontend["Frontend"]
+            nocturne_web_bff["BFF"]
+        end
+        nocturne_postgres_server[("nocturne-postgres-server\n:5432")]
+        scalar["scalar"]
+        scalar_bootstrap["scalar-bootstrap"]
+    end
+
+    Internet --> gateway
+    nocturne_api --> nocturne_postgres_server
+    nocturne_api --> nocturne_web_bff
+    nocturne_web_bff --> nocturne_api
+    nocturne_web_bff --> nocturne_postgres_server
+    gateway --> nocturne_api
+    gateway --> nocturne_web_frontend
+    nocturne_web_frontend --> nocturne_web_bff

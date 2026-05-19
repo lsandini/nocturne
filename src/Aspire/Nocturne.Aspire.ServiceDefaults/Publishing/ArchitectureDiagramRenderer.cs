@@ -7,67 +7,66 @@ public static class ArchitectureDiagramRenderer
     public static string Render(AspirePublishModel model)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("architecture-beta");
-
-        // Groups
-        sb.AppendLine("    group external(cloud)[External]");
-        sb.AppendLine("    group internal(server)[aspire network]");
+        sb.AppendLine("flowchart LR");
         sb.AppendLine();
 
-        // Internet node (always present — the external entry point)
-        sb.AppendLine("    service internet(cloud)[Internet] in external");
+        // Internet node — always the external entry point
+        sb.AppendLine("    Internet((Internet))");
+        sb.AppendLine();
 
-        // Web services are split into a BFF + Frontend subgroup; edges target the BFF
+        // External subgraph: services with host-port bindings
+        var externalServices = model.Services.Where(s => s.HostPorts.Count > 0).ToList();
+        sb.AppendLine("    subgraph ext[\"External\"]");
+        foreach (var svc in externalServices)
+        {
+            var port = svc.HostPorts[0].HostPort;
+            sb.AppendLine($"        {NodeId(svc.Name)}[\"{svc.Name}\\n:{port}\"]");
+        }
+        sb.AppendLine("    end");
+        sb.AppendLine();
+
+        // Internal subgraph: all other services
+        var internalServices = model.Services.Where(s => s.HostPorts.Count == 0).ToList();
+        sb.AppendLine("    subgraph net[\"aspire network\"]");
+        foreach (var svc in internalServices)
+        {
+            var portSuffix = svc.InternalPorts.Count > 0 ? "\\n:" + svc.InternalPorts[0] : string.Empty;
+
+            if (svc.Kind == ServiceKind.Web)
+            {
+                // Render as a nested subgraph with BFF and Frontend child nodes so the
+                // SvelteKit server-side (BFF) and client bundle are architecturally distinct.
+                var groupId = NodeId(svc.Name) + "_group";
+                sb.AppendLine($"        subgraph {groupId}[\"{svc.Name}\"]");
+                sb.AppendLine($"            {NodeId(svc.Name)}_frontend[\"Frontend\"]");
+                sb.AppendLine($"            {NodeId(svc.Name)}_bff[\"BFF\"]");
+                sb.AppendLine($"        end");
+            }
+            else if (svc.Kind == ServiceKind.Database)
+            {
+                sb.AppendLine($"        {NodeId(svc.Name)}[(\"{svc.Name}{portSuffix}\")]");
+            }
+            else
+            {
+                sb.AppendLine($"        {NodeId(svc.Name)}[\"{svc.Name}\"]");
+            }
+        }
+        sb.AppendLine("    end");
+        sb.AppendLine();
+
+        // Edge filtering helpers
         var webNames = model.Services
             .Where(s => s.Kind == ServiceKind.Web)
             .Select(s => s.Name)
             .ToHashSet();
 
-        // Service nodes
-        foreach (var svc in model.Services)
-        {
-            var group = svc.HostPorts.Count > 0 ? "external" : "internal";
-            var portSuffix = svc.HostPorts.Count > 0
-                ? " " + svc.HostPorts[0].HostPort
-                : svc.InternalPorts.Count > 0
-                    ? " " + svc.InternalPorts[0]
-                    : string.Empty;
-            var label = svc.Name.Replace("-", " ");
-
-            if (svc.Kind == ServiceKind.Web)
-            {
-                // Render as a nested group with BFF and Frontend child services so the
-                // SvelteKit server-side (BFF) and client bundle are architecturally distinct.
-                var groupId = NodeId(svc.Name) + "_group";
-                sb.AppendLine($"    group {groupId}(server)[{label}{portSuffix}] in {group}");
-                sb.AppendLine($"    service {NodeId(svc.Name)}_bff(server)[BFF] in {groupId}");
-                sb.AppendLine($"    service {NodeId(svc.Name)}_frontend(disk)[Frontend] in {groupId}");
-            }
-            else
-            {
-                var icon = svc.Kind switch
-                {
-                    ServiceKind.Database => "database",
-                    ServiceKind.Gateway  => "server",
-                    ServiceKind.Api      => "server",
-                    _                    => "disk",
-                };
-                sb.AppendLine($"    service {NodeId(svc.Name)}({icon})[{label}{portSuffix}] in {group}");
-            }
-        }
-
-        sb.AppendLine();
-
-        // All service names that have visual representation in the diagram (used for edge filtering)
-        var representedNames = new HashSet<string>(model.Services.Select(s => s.Name));
-        representedNames.Add("internet");
-
-        // Container services (scalar, watchtower, etc.) are auxiliary — show as nodes but omit
-        // their edges so they don't obscure the core service topology.
         var containerNames = model.Services
             .Where(s => s.Kind == ServiceKind.Container)
             .Select(s => s.Name)
             .ToHashSet();
+
+        var representedNames = new HashSet<string>(model.Services.Select(s => s.Name));
+        representedNames.Add("internet");
 
         var serviceKinds = model.Services.ToDictionary(s => s.Name, s => s.Kind);
 
@@ -89,7 +88,7 @@ public static class ArchitectureDiagramRenderer
         // Internet → gateway
         var gateway = model.Services.FirstOrDefault(s => s.Kind == ServiceKind.Gateway);
         if (gateway != null)
-            sb.AppendLine($"    internet:R --> L:{NodeId(gateway.Name)}");
+            sb.AppendLine($"    Internet --> {NodeId(gateway.Name)}");
 
         // Reference edges only — both endpoints must be represented, non-Container services
         foreach (var edge in model.Edges.Where(e =>
@@ -98,11 +97,11 @@ public static class ArchitectureDiagramRenderer
             representedNames.Contains(e.To) &&
             !containerNames.Contains(e.From) &&
             !containerNames.Contains(e.To)))
-            sb.AppendLine($"    {EdgeFromId(edge.From)}:R --> L:{EdgeToId(edge.From, edge.To)}");
+            sb.AppendLine($"    {EdgeFromId(edge.From)} --> {EdgeToId(edge.From, edge.To)}");
 
         // Within each web group: frontend routes inbound requests through to the BFF
         foreach (var webSvc in model.Services.Where(s => s.Kind == ServiceKind.Web))
-            sb.AppendLine($"    {NodeId(webSvc.Name)}_frontend:R --> L:{NodeId(webSvc.Name)}_bff");
+            sb.AppendLine($"    {NodeId(webSvc.Name)}_frontend --> {NodeId(webSvc.Name)}_bff");
 
         return sb.ToString().TrimEnd();
     }
