@@ -17,6 +17,7 @@
         <PackageReference Include="CommunityToolkit.Aspire.Hosting.Rust" />
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
         <PackageReference Include="Spectre.Console" />
+        <PackageReference Include="YamlDotNet" />
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\..\API\Nocturne.API\Nocturne.API.csproj" />

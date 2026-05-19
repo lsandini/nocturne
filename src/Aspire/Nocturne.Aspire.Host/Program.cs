@@ -25,11 +25,11 @@ class Program
         // ------------------------------------------------------------------
         var includeDashboard = builder.Configuration.GetValue(
             "Aspire:OptionalServices:AspireDashboard:Enabled",
-            false
+            true
         );
         var enableWatchtower = builder.Configuration.GetValue(
             "Aspire:OptionalServices:Watchtower:Enabled",
-            true
+            false
         );
 
         var compose = builder.AddDockerComposeEnvironment("compose");
@@ -116,9 +116,9 @@ class Program
                 // ownership on the wrong database. Aspire's AddDatabase below
                 // is a no-op once the database already exists.
                 .WithEnvironment("POSTGRES_DB", dbName)
-                .WithEnvironment("POSTGRES_MIGRATOR_PASSWORD", postgresMigratorPassword)
-                .WithEnvironment("POSTGRES_APP_PASSWORD", postgresAppPassword)
-                .WithEnvironment("POSTGRES_WEB_PASSWORD", postgresWebPassword);
+                .WithEnvironment("NOCTURNE_MIGRATOR_PASSWORD", postgresMigratorPassword)
+                .WithEnvironment("NOCTURNE_APP_PASSWORD", postgresAppPassword)
+                .WithEnvironment("NOCTURNE_WEB_PASSWORD", postgresWebPassword);
 
             if (persistence == PersistenceMode.Persistent)
             {
@@ -603,6 +603,7 @@ class Program
         }
 
         builder.AddMermaidDiagramPublisher();
+        builder.AddPortainerComposePublisher();
 
         var app = builder.Build();
         await app.RunAsync();
