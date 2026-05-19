@@ -28844,6 +28844,7 @@ export interface ClockSettings {
     alwaysShowTime?: boolean;
     backgroundImage?: string | undefined;
     backgroundOpacity?: number;
+    screensaverMode?: boolean;
 }
 
 export interface ClockFaceListItem {

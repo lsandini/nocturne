@@ -31067,6 +31067,9 @@
           "backgroundOpacity": {
             "type": "integer",
             "format": "int32"
+          },
+          "screensaverMode": {
+            "type": "boolean"
           }
         }
       },
