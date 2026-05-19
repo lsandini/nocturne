@@ -3,12 +3,12 @@ architecture-beta
     group internal(server)[aspire network]
 
     service internet(cloud)[Internet] in external
-    service nocturne_postgres_server(database)[nocturne-postgres-server] in internal
-    service nocturne_api(server)[nocturne-api] in internal
-    service nocturne_web(server)[nocturne-web] in internal
+    service nocturne_postgres_server(database)[nocturne postgres server] in internal
+    service nocturne_api(server)[nocturne api] in internal
+    service nocturne_web(server)[nocturne web] in internal
     service scalar(disk)[scalar] in internal
-    service scalar_bootstrap(server)[scalar-bootstrap] in internal
-    service gateway(server)[gateway :8080] in external
+    service scalar_bootstrap(server)[scalar bootstrap] in internal
+    service gateway(server)[gateway 8080] in external
 
     internet:R --> L:gateway
     nocturne_api:R --> L:nocturne_postgres_server

@@ -59,9 +59,9 @@ public class ArchitectureDiagramRendererTests
     {
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
         result.Should().Contain("gateway");
-        result.Should().Contain("nocturne-api");
-        result.Should().Contain("nocturne-web");
-        result.Should().Contain("nocturne-postgres-server");
+        result.Should().Contain("nocturne_api");
+        result.Should().Contain("nocturne_web");
+        result.Should().Contain("nocturne_postgres_server");
         result.Should().Contain("watchtower");
     }
 

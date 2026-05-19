@@ -30,11 +30,12 @@ public static class ArchitectureDiagramRenderer
                 _                    => "disk",
             };
             var portSuffix = svc.HostPorts.Count > 0
-                ? " :" + svc.HostPorts[0].HostPort
+                ? " " + svc.HostPorts[0].HostPort
                 : svc.InternalPorts.Count > 0
-                    ? " :" + svc.InternalPorts[0]
+                    ? " " + svc.InternalPorts[0]
                     : string.Empty;
-            sb.AppendLine($"    service {NodeId(svc.Name)}({icon})[{svc.Name}{portSuffix}] in {group}");
+            var label = svc.Name.Replace("-", " ");
+            sb.AppendLine($"    service {NodeId(svc.Name)}({icon})[{label}{portSuffix}] in {group}");
         }
 
         sb.AppendLine();
