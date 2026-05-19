@@ -39,13 +39,20 @@ public static class ArchitectureDiagramRenderer
 
         sb.AppendLine();
 
+        // Only emit edges where both endpoints are declared service nodes
+        var declaredIds = new HashSet<string>(model.Services.Select(s => NodeId(s.Name)));
+        declaredIds.Add("internet");
+
         // Internet → gateway
         var gateway = model.Services.FirstOrDefault(s => s.Kind == ServiceKind.Gateway);
-        if (gateway != null)
+        if (gateway != null && declaredIds.Contains(NodeId(gateway.Name)))
             sb.AppendLine($"    internet:R --> L:{NodeId(gateway.Name)}");
 
-        // Reference edges only (WaitFor adds noise)
-        foreach (var edge in model.Edges.Where(e => e.Kind == EdgeKind.Reference))
+        // Reference edges only — both endpoints must be declared services (WaitFor adds noise)
+        foreach (var edge in model.Edges.Where(e =>
+            e.Kind == EdgeKind.Reference &&
+            declaredIds.Contains(NodeId(e.From)) &&
+            declaredIds.Contains(NodeId(e.To))))
             sb.AppendLine($"    {NodeId(edge.From)}:R --> L:{NodeId(edge.To)}");
 
         return sb.ToString().TrimEnd();

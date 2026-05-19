@@ -11,38 +11,9 @@ architecture-beta
     service gateway(server)[gateway :8080] in external
 
     internet:R --> L:gateway
-    postgres_username:R --> L:nocturne_postgres_server
-    postgres_password:R --> L:nocturne_postgres_server
-    postgres_migrator_password:R --> L:nocturne_postgres_server
-    postgres_app_password:R --> L:nocturne_postgres_server
-    postgres_web_password:R --> L:nocturne_postgres_server
-    nocturne_postgres_server:R --> L:postgres_migrator_password
-    nocturne_postgres_server:R --> L:postgres_app_password
-    nocturne_postgres_server:R --> L:postgres_web_password
-    instance_key:R --> L:nocturne_web
-    nocturne_api:R --> L:instance_key
-    nocturne_api:R --> L:nocturne_postgres
     nocturne_api:R --> L:nocturne_postgres_server
-    nocturne_api:R --> L:postgres_app_password
-    nocturne_api:R --> L:postgres_migrator_password
     nocturne_api:R --> L:nocturne_web
-    nocturne_api:R --> L:base_domain
     nocturne_web:R --> L:nocturne_api
-    nocturne_web:R --> L:instance_key
-    nocturne_web:R --> L:discord_bot_token
-    nocturne_web:R --> L:discord_public_key
-    nocturne_web:R --> L:discord_application_id
-    nocturne_web:R --> L:discord_client_secret
-    nocturne_web:R --> L:base_domain
-    nocturne_web:R --> L:telegram_bot_token
-    nocturne_web:R --> L:telegram_webhook_secret_token
-    nocturne_web:R --> L:slack_bot_token
-    nocturne_web:R --> L:slack_signing_secret
-    nocturne_web:R --> L:whatsapp_access_token
-    nocturne_web:R --> L:whatsapp_verify_token
-    nocturne_web:R --> L:whatsapp_app_secret
-    nocturne_web:R --> L:whatsapp_phone_number_id
-    nocturne_web:R --> L:postgres_web_password
     nocturne_web:R --> L:nocturne_postgres_server
     scalar:R --> L:nocturne_api
     scalar_bootstrap:R --> L:scalar

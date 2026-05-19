@@ -18,38 +18,9 @@ flowchart TD
     gateway -->|"/api/{**catch-all}\n/auth/bot/{**catch-all}\n/** (fallback)"| nocturne_web
     gateway -->|"/scalar/{**catch-all}"| scalar_bootstrap
     gateway -->|"/scalar-proxy/{**catch-all}"| scalar
-    postgres_username -->|Reference| nocturne_postgres_server
-    postgres_password -->|Reference| nocturne_postgres_server
-    postgres_migrator_password -->|Reference| nocturne_postgres_server
-    postgres_app_password -->|Reference| nocturne_postgres_server
-    postgres_web_password -->|Reference| nocturne_postgres_server
-    nocturne_postgres_server -->|Reference| postgres_migrator_password
-    nocturne_postgres_server -->|Reference| postgres_app_password
-    nocturne_postgres_server -->|Reference| postgres_web_password
-    instance_key -->|Reference| nocturne_web
-    nocturne_api -->|Reference| instance_key
-    nocturne_api -->|Reference| nocturne_postgres
     nocturne_api -->|Reference| nocturne_postgres_server
-    nocturne_api -->|Reference| postgres_app_password
-    nocturne_api -->|Reference| postgres_migrator_password
     nocturne_api -->|Reference| nocturne_web
-    nocturne_api -->|Reference| base_domain
     nocturne_web -->|Reference| nocturne_api
-    nocturne_web -->|Reference| instance_key
-    nocturne_web -->|Reference| discord_bot_token
-    nocturne_web -->|Reference| discord_public_key
-    nocturne_web -->|Reference| discord_application_id
-    nocturne_web -->|Reference| discord_client_secret
-    nocturne_web -->|Reference| base_domain
-    nocturne_web -->|Reference| telegram_bot_token
-    nocturne_web -->|Reference| telegram_webhook_secret_token
-    nocturne_web -->|Reference| slack_bot_token
-    nocturne_web -->|Reference| slack_signing_secret
-    nocturne_web -->|Reference| whatsapp_access_token
-    nocturne_web -->|Reference| whatsapp_verify_token
-    nocturne_web -->|Reference| whatsapp_app_secret
-    nocturne_web -->|Reference| whatsapp_phone_number_id
-    nocturne_web -->|Reference| postgres_web_password
     nocturne_web -->|Reference| nocturne_postgres_server
     scalar -->|Reference| nocturne_api
     scalar_bootstrap -->|Reference| scalar

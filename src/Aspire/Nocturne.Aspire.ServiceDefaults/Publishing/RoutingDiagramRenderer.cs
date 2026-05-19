@@ -48,8 +48,13 @@ public static class RoutingDiagramRenderer
                 sb.AppendLine($"    {NodeId(gateway.Name)} -->|\"{label}\"| {NodeId(group.Key)}");
         }
 
-        // Service-to-service edges (Reference only)
-        foreach (var edge in model.Edges.Where(e => e.Kind == EdgeKind.Reference))
+        // Service-to-service edges (Reference only, both endpoints must be declared)
+        var declaredIds = new HashSet<string>(model.Services.Select(s => NodeId(s.Name)));
+        declaredIds.Add("Internet");
+        foreach (var edge in model.Edges.Where(e =>
+            e.Kind == EdgeKind.Reference &&
+            declaredIds.Contains(NodeId(e.From)) &&
+            declaredIds.Contains(NodeId(e.To))))
             sb.AppendLine($"    {NodeId(edge.From)} -->|Reference| {NodeId(edge.To)}");
 
         return sb.ToString().TrimEnd();

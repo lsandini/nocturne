@@ -78,4 +78,28 @@ public class ArchitectureDiagramRendererTests
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
         result.Should().Contain("internet");
     }
+
+    [Fact]
+    public void Render_EdgesBothEndpointsMustBeDeclaredServices()
+    {
+        // Model with edges where one endpoint is not a declared service (simulates a
+        // ParameterResource that produces an edge but no service node)
+        var model = new AspirePublishModel(
+            Services:
+            [
+                new("gateway", ServiceKind.Gateway, [], [new("8080", "5000")]),
+                new("nocturne-api", ServiceKind.Api, ["8080"], []),
+            ],
+            Edges:
+            [
+                new("nocturne-api", "nocturne-postgres-server", EdgeKind.Reference), // target not in Services
+                new("instance-key", "nocturne-api", EdgeKind.Reference),             // source not in Services
+            ],
+            Routes: []
+        );
+
+        var result = ArchitectureDiagramRenderer.Render(model);
+        result.Should().NotContain("nocturne_postgres_server");
+        result.Should().NotContain("instance_key");
+    }
 }
