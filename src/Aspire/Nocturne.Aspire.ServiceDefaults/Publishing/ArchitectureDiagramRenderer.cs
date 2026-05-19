@@ -17,44 +17,66 @@ public static class ArchitectureDiagramRenderer
         // Internet node (always present — the external entry point)
         sb.AppendLine("    service internet(cloud)[Internet] in external");
 
+        // Web services are split into a BFF + Frontend subgroup; edges target the BFF
+        var webNames = model.Services
+            .Where(s => s.Kind == ServiceKind.Web)
+            .Select(s => s.Name)
+            .ToHashSet();
+
         // Service nodes
         foreach (var svc in model.Services)
         {
             var group = svc.HostPorts.Count > 0 ? "external" : "internal";
-            var icon = svc.Kind switch
-            {
-                ServiceKind.Database => "database",
-                ServiceKind.Gateway  => "server",
-                ServiceKind.Api      => "server",
-                ServiceKind.Web      => "server",
-                _                    => "disk",
-            };
             var portSuffix = svc.HostPorts.Count > 0
                 ? " " + svc.HostPorts[0].HostPort
                 : svc.InternalPorts.Count > 0
                     ? " " + svc.InternalPorts[0]
                     : string.Empty;
             var label = svc.Name.Replace("-", " ");
-            sb.AppendLine($"    service {NodeId(svc.Name)}({icon})[{label}{portSuffix}] in {group}");
+
+            if (svc.Kind == ServiceKind.Web)
+            {
+                // Render as a nested group with BFF and Frontend child services so the
+                // SvelteKit server-side (BFF) and client bundle are architecturally distinct.
+                var groupId = NodeId(svc.Name) + "_group";
+                sb.AppendLine($"    group {groupId}(server)[{label}{portSuffix}] in {group}");
+                sb.AppendLine($"    service {NodeId(svc.Name)}_bff(server)[BFF] in {groupId}");
+                sb.AppendLine($"    service {NodeId(svc.Name)}_frontend(disk)[Frontend] in {groupId}");
+            }
+            else
+            {
+                var icon = svc.Kind switch
+                {
+                    ServiceKind.Database => "database",
+                    ServiceKind.Gateway  => "server",
+                    ServiceKind.Api      => "server",
+                    _                    => "disk",
+                };
+                sb.AppendLine($"    service {NodeId(svc.Name)}({icon})[{label}{portSuffix}] in {group}");
+            }
         }
 
         sb.AppendLine();
 
-        // Only emit edges where both endpoints are declared service nodes
-        var declaredIds = new HashSet<string>(model.Services.Select(s => NodeId(s.Name)));
-        declaredIds.Add("internet");
+        // All service names that have visual representation in the diagram (used for edge filtering)
+        var representedNames = new HashSet<string>(model.Services.Select(s => s.Name));
+        representedNames.Add("internet");
+
+        // Edge node ID: web services connect via their BFF sub-service
+        string EdgeId(string name) =>
+            webNames.Contains(name) ? NodeId(name) + "_bff" : NodeId(name);
 
         // Internet → gateway
         var gateway = model.Services.FirstOrDefault(s => s.Kind == ServiceKind.Gateway);
-        if (gateway != null && declaredIds.Contains(NodeId(gateway.Name)))
-            sb.AppendLine($"    internet:R --> L:{NodeId(gateway.Name)}");
+        if (gateway != null)
+            sb.AppendLine($"    internet:R --> L:{EdgeId(gateway.Name)}");
 
-        // Reference edges only — both endpoints must be declared services (WaitFor adds noise)
+        // Reference edges only — both endpoints must be represented services (WaitFor adds noise)
         foreach (var edge in model.Edges.Where(e =>
             e.Kind == EdgeKind.Reference &&
-            declaredIds.Contains(NodeId(e.From)) &&
-            declaredIds.Contains(NodeId(e.To))))
-            sb.AppendLine($"    {NodeId(edge.From)}:R --> L:{NodeId(edge.To)}");
+            representedNames.Contains(e.From) &&
+            representedNames.Contains(e.To)))
+            sb.AppendLine($"    {EdgeId(edge.From)}:R --> L:{EdgeId(edge.To)}");
 
         return sb.ToString().TrimEnd();
     }

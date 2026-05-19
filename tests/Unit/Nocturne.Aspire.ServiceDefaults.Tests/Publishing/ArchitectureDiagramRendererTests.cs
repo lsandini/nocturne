@@ -80,6 +80,27 @@ public class ArchitectureDiagramRendererTests
     }
 
     [Fact]
+    public void Render_WebServiceSplitsIntoBffAndFrontendSubgroup()
+    {
+        var result = ArchitectureDiagramRenderer.Render(BuildModel());
+        result.Should().Contain("nocturne_web_group");
+        result.Should().Contain("nocturne_web_bff");
+        result.Should().Contain("nocturne_web_frontend");
+        // Should NOT emit a plain service node for the web service
+        result.Should().NotMatchRegex(@"service nocturne_web\(");
+    }
+
+    [Fact]
+    public void Render_EdgesFromWebServiceOriginateFromBff()
+    {
+        // The test model has nocturne-web → nocturne-api; the BFF is the outbound side
+        var result = ArchitectureDiagramRenderer.Render(BuildModel());
+        result.Should().Contain("nocturne_web_bff:R --> L:nocturne_api");
+        // Plain web node ID must not appear as an edge endpoint
+        result.Should().NotMatchRegex(@"nocturne_web:R -->|-->\s+L:nocturne_web\b");
+    }
+
+    [Fact]
     public void Render_EdgesBothEndpointsMustBeDeclaredServices()
     {
         // Model with edges where one endpoint is not a declared service (simulates a
