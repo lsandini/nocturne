@@ -75,6 +75,7 @@ class Program
             // (or env var Parameters__postgres-username) automatically.
             var postgresUsername = builder.AddParameter(
                 ServiceNames.Parameters.PostgresUsername,
+                "nocturne",
                 secret: false
             );
             var postgresPassword = builder.AddParameter(

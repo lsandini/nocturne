@@ -55,21 +55,33 @@ try
         return 1;
     }
 
-    // Inline the init script via docker compose configs so the compose is
-    // self-contained — no bind mounts, compatible with Portainer CE.
     var initScriptSource = Path.Combine(repoRoot, "docs", "postgres", "container-init", "00-init.sh");
-    var composeYaml = File.ReadAllText(composePath);
-    var processedCompose = InlineInitScript(composeYaml, initScriptSource);
+    var rawComposeYaml = File.ReadAllText(composePath);
 
-    var composeOutputPath = Path.Combine(outputDir, "docker-compose.yaml");
-    File.WriteAllText(composeOutputPath, processedCompose);
-    Console.WriteLine($"[publish-release] Wrote {composeOutputPath}");
-
-    // Generate .env.example from aspire-generated .env
+    // Generate .env.example from aspire-generated .env (shared across deploy targets).
     var aspireEnvPath = Path.Combine(tempDir, ".env");
     var envExampleOutputPath = Path.Combine(outputDir, ".env.example");
     GenerateEnvExample(aspireEnvPath, envExampleOutputPath);
     Console.WriteLine($"[publish-release] Wrote {envExampleOutputPath}");
+
+    // Write raw aspire output to deploy/docker-compose/ — bind-mount approach works
+    // fine for standard docker compose deployments.
+    var deployDockerComposeDir = Path.Combine(repoRoot, "deploy", "docker-compose");
+    Directory.CreateDirectory(deployDockerComposeDir);
+    File.WriteAllText(Path.Combine(deployDockerComposeDir, "docker-compose.yaml"), rawComposeYaml);
+    var deployInitDir = Path.Combine(deployDockerComposeDir, "init");
+    Directory.CreateDirectory(deployInitDir);
+    File.Copy(initScriptSource, Path.Combine(deployInitDir, "00-init.sh"), overwrite: true);
+    File.Copy(envExampleOutputPath, Path.Combine(deployDockerComposeDir, ".env.example"), overwrite: true);
+    Console.WriteLine($"[publish-release] Updated deploy/docker-compose/ (commit these before tagging)");
+
+    // Inline the init script via docker compose configs so the compose is
+    // self-contained — no bind mounts, compatible with Portainer CE.
+    var processedCompose = InlineInitScript(rawComposeYaml, initScriptSource);
+
+    var composeOutputPath = Path.Combine(outputDir, "docker-compose.yaml");
+    File.WriteAllText(composeOutputPath, processedCompose);
+    Console.WriteLine($"[publish-release] Wrote {composeOutputPath}");
 
     // Write processed compose and .env.example to deploy/portainer/ in the repo
     // so they can be committed and used directly from the repository.
@@ -179,16 +191,7 @@ static void GenerateEnvExample(
     string aspireEnvPath,
     string outputPath)
 {
-    // Known defaults for non-secret values
-    var defaults = new Dictionary<string, string>
-    {
-        ["NOCTURNE_API_IMAGE"] = "ghcr.io/nightscout/nocturne/nocturne-api:latest",
-        ["NOCTURNE_WEB_IMAGE"] = "ghcr.io/nightscout/nocturne/nocturne-web:latest",
-        ["NOCTURNE_API_PORT"] = "8080",
-        ["POSTGRES_USERNAME"] = "nocturne",
-    };
-
-    // Secret vars -- leave blank
+    // Secret vars — always blanked so users fill them in.
     var secrets = new HashSet<string>
     {
         "POSTGRES_PASSWORD",
@@ -198,13 +201,13 @@ static void GenerateEnvExample(
         "INSTANCE_KEY",
     };
 
-    // Required config (not secrets, but must be set)
+    // Required config (not secrets, but must be set by the user).
     var requiredConfig = new HashSet<string>
     {
         "BASE_DOMAIN",
     };
 
-    // Optional vars (all bot integration config — leave blank if not using)
+    // Optional vars (bot integration config — leave commented out if not using).
     var optional = new HashSet<string>
     {
         "DISCORD_BOT_TOKEN",
@@ -229,14 +232,14 @@ static void GenerateEnvExample(
     writer.WriteLine("# Passwords are only used on first database initialization.");
     writer.WriteLine();
 
+    var seenVars = new HashSet<string>();
+    var configVars = new List<(string name, string value)>();
+    var requiredConfigVars = new List<(string name, string value)>();
+    var secretVars = new List<(string name, string value)>();
+    var optionalVars = new List<(string name, string value)>();
+
     if (File.Exists(aspireEnvPath))
     {
-        var seenVars = new HashSet<string>();
-        var configVars = new List<(string name, string value)>();
-        var requiredConfigVars = new List<(string name, string value)>();
-        var secretVars = new List<(string name, string value)>();
-        var optionalVars = new List<(string name, string value)>();
-
         foreach (var line in File.ReadLines(aspireEnvPath))
         {
             if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
@@ -246,6 +249,7 @@ static void GenerateEnvExample(
             if (eqIndex < 0) continue;
 
             var name = line[..eqIndex];
+            var aspireValue = line[(eqIndex + 1)..];
 
             if (!seenVars.Add(name)) continue;
 
@@ -258,45 +262,30 @@ static void GenerateEnvExample(
             else if (requiredConfig.Contains(name))
                 requiredConfigVars.Add((name, ""));
             else if (optional.Contains(name))
-                optionalVars.Add((name, defaults.GetValueOrDefault(name, "")));
+                optionalVars.Add((name, aspireValue));
             else
-                configVars.Add((name, defaults.GetValueOrDefault(name, "")));
+                configVars.Add((name, aspireValue));
         }
-
-        writer.WriteLine("# -- Configuration ---------------------------------------------");
-        writer.WriteLine();
-        foreach (var (name, value) in configVars)
-            writer.WriteLine($"{name}={value}");
-
-        writer.WriteLine();
-        writer.WriteLine("# -- Required (set these before first run) ----------------------");
-        writer.WriteLine();
-        foreach (var (name, _) in requiredConfigVars)
-            writer.WriteLine($"{name}=");
-        foreach (var (name, _) in secretVars)
-            writer.WriteLine($"{name}=");
-
-        writer.WriteLine();
-        writer.WriteLine("# -- Optional --------------------------------------------------");
-        writer.WriteLine();
-        foreach (var (name, value) in optionalVars)
-            writer.WriteLine($"# {name}=");
     }
-    else
-    {
-        // Fallback if aspire didn't generate .env
-        writer.WriteLine("NOCTURNE_API_IMAGE=ghcr.io/nightscout/nocturne/nocturne-api:latest");
-        writer.WriteLine("NOCTURNE_WEB_IMAGE=ghcr.io/nightscout/nocturne/nocturne-web:latest");
-        writer.WriteLine("NOCTURNE_API_PORT=8080");
-        writer.WriteLine("POSTGRES_USERNAME=nocturne");
-        writer.WriteLine();
-        writer.WriteLine("BASE_DOMAIN=");
-        writer.WriteLine("POSTGRES_PASSWORD=");
-        writer.WriteLine("POSTGRES_MIGRATOR_PASSWORD=");
-        writer.WriteLine("POSTGRES_APP_PASSWORD=");
-        writer.WriteLine("POSTGRES_WEB_PASSWORD=");
-        writer.WriteLine("INSTANCE_KEY=");
-    }
+
+    writer.WriteLine("# -- Configuration ---------------------------------------------");
+    writer.WriteLine();
+    foreach (var (name, value) in configVars)
+        writer.WriteLine($"{name}={value}");
+
+    writer.WriteLine();
+    writer.WriteLine("# -- Required (set these before first run) ----------------------");
+    writer.WriteLine();
+    foreach (var (name, _) in requiredConfigVars)
+        writer.WriteLine($"{name}=");
+    foreach (var (name, _) in secretVars)
+        writer.WriteLine($"{name}=");
+
+    writer.WriteLine();
+    writer.WriteLine("# -- Optional --------------------------------------------------");
+    writer.WriteLine();
+    foreach (var (name, _) in optionalVars)
+        writer.WriteLine($"# {name}=");
 }
 
 static int RunProcess(string command, string[] arguments, Dictionary<string, string>? env = null)
