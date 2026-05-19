@@ -144,12 +144,11 @@ public class ArchitectureDiagramRendererTests
     }
 
     [Fact]
-    public void Render_ContainerServicesHaveNoEdges()
+    public void Render_ContainerServicesAreIncluded()
     {
-        // watchtower is ServiceKind.Container — it should appear as a node but have no edges
+        // watchtower is ServiceKind.Container — it should appear as a node
         var result = ArchitectureDiagramRenderer.Render(BuildModel());
         result.Should().Contain("watchtower");
-        result.Should().NotMatchRegex(@"watchtower -->|--> watchtower\b");
     }
 
     [Fact]

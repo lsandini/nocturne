@@ -60,11 +60,6 @@ public static class ArchitectureDiagramRenderer
             .Select(s => s.Name)
             .ToHashSet();
 
-        var containerNames = model.Services
-            .Where(s => s.Kind == ServiceKind.Container)
-            .Select(s => s.Name)
-            .ToHashSet();
-
         var representedNames = new HashSet<string>(model.Services.Select(s => s.Name));
         representedNames.Add("internet");
 
@@ -90,13 +85,11 @@ public static class ArchitectureDiagramRenderer
         if (gateway != null)
             sb.AppendLine($"    Internet --> {NodeId(gateway.Name)}");
 
-        // Reference edges only — both endpoints must be represented, non-Container services
+        // Reference edges only — both endpoints must be represented services
         foreach (var edge in model.Edges.Where(e =>
             e.Kind == EdgeKind.Reference &&
             representedNames.Contains(e.From) &&
-            representedNames.Contains(e.To) &&
-            !containerNames.Contains(e.From) &&
-            !containerNames.Contains(e.To)))
+            representedNames.Contains(e.To)))
             sb.AppendLine($"    {EdgeFromId(edge.From)} --> {EdgeToId(edge.From, edge.To)}");
 
         // Within each web group: frontend routes inbound requests through to the BFF
