@@ -142,8 +142,6 @@ Console.WriteLine($"    nocturne-web:{version}");
 
 return 0;
 
-// -- Helpers ---------------------------------------------------------------
-
 static string ExtractGitHubRepo(string remoteUrl)
 {
     // Handles both HTTPS and SSH remote URLs
