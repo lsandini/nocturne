@@ -137,6 +137,19 @@ public class NightscoutConnectorServiceBase<TConfig> : BaseConnectorService<TCon
     }
 
     public override async Task<SyncResult> SyncDataAsync(
+        TConfig config,
+        CancellationToken cancellationToken = default,
+        DateTime? since = null,
+        ISyncProgressReporter? progressReporter = null)
+    {
+        // _currentConfig starts as startup defaults (empty URL). Prime it with the
+        // tenant config before base calls AuthenticateAsync(), which delegates to
+        // AuthenticateWithConfigAsync(_currentConfig).
+        _currentConfig = config;
+        return await base.SyncDataAsync(config, cancellationToken, since, progressReporter);
+    }
+
+    public override async Task<SyncResult> SyncDataAsync(
         SyncRequest request,
         TConfig config,
         CancellationToken cancellationToken,
