@@ -73,11 +73,13 @@ class Program
                 ServiceNames.Parameters.PostgresUsername,
                 "nocturne",
                 secret: false
-            );
+            ).WithPublishMetadata("PostgreSQL bootstrap username");
             var postgresPassword = builder.AddParameter(
                 ServiceNames.Parameters.PostgresPassword,
                 secret: true
-            );
+            ).WithPublishMetadata(
+                "PostgreSQL bootstrap password",
+                "Used only at first container start to create runtime roles");
 
             // Non-bootstrap role passwords. The Postgres container's init
             // script reads them via env vars and creates nocturne_migrator
@@ -85,11 +87,15 @@ class Program
             postgresMigratorPassword = builder.AddParameter(
                 ServiceNames.Parameters.PostgresMigratorPassword,
                 secret: true
-            );
+            ).WithPublishMetadata(
+                "Migrator role password",
+                "Password for nocturne_migrator — owns the schema, runs EF migrations");
             postgresAppPassword = builder.AddParameter(
                 ServiceNames.Parameters.PostgresAppPassword,
                 secret: true
-            );
+            ).WithPublishMetadata(
+                "App role password",
+                "Password for nocturne_app — runtime role, cannot bypass Row Level Security");
             postgresWebPassword = builder.AddParameter(
                 ServiceNames.Parameters.PostgresWebPassword,
                 secret: true
@@ -192,7 +198,10 @@ class Program
         // Secret parameters. AddParameter handles dashboard prompting and
         // env var override (Parameters__name) for free.
         // ------------------------------------------------------------------
-        var instanceKey = builder.AddParameter(ServiceNames.Parameters.InstanceKey, secret: true);
+        var instanceKey = builder.AddParameter(ServiceNames.Parameters.InstanceKey, secret: true)
+            .WithPublishMetadata(
+                "Instance key",
+                "Minimum 12 characters — used for JWT signing and service authentication");
 
         // Discord bot credentials. Optional — only required if Discord bot
         // features are enabled for a deployment. Empty-string defaults let
@@ -210,7 +219,10 @@ class Program
         // Platform base domain — the single hostname all services derive URLs from.
         // Production should set this to e.g. "nocturne.run" via user-secrets.
         // Injected as "BaseDomain" into both the API and SvelteKit.
-        var baseDomain = builder.AddParameter("base-domain", "");
+        var baseDomain = builder.AddParameter("base-domain", "")
+            .WithPublishMetadata(
+                "Base domain",
+                "Root domain only, e.g. example.com (not app.example.com — subdomains are generated per tenant)");
 
         // Chat platform credentials. All optional — a deployment that only
         // uses Discord shouldn't need to supply Telegram/Slack/WhatsApp
@@ -243,6 +255,10 @@ class Program
             .PublishAsDockerComposeService((_, _) => { })
             .WithRemoteImageName("ghcr.io/nightscout/nocturne/nocturne-api")
             .WithRemoteImageTag("latest")
+            .WithPublishImageMetadata(
+                imageLabel: "API image",
+                imageDefault: "ghcr.io/nightscout/nocturne/nocturne-api:latest",
+                portLabel: "API port")
             .WithEnvironment(ServiceNames.ConfigKeys.InstanceKey, instanceKey);
 
         if (
@@ -381,7 +397,10 @@ class Program
                 .WaitFor(api)
                 .PublishAsDockerComposeService((_, _) => { })
                 .WithRemoteImageName("ghcr.io/nightscout/nocturne/nocturne-web")
-                .WithRemoteImageTag("latest");
+                .WithRemoteImageTag("latest")
+                .WithPublishImageMetadata(
+                    imageLabel: "Web image",
+                    imageDefault: "ghcr.io/nightscout/nocturne/nocturne-web:latest");
 
             ConfigureWebEnvironment(dockerWeb);
 

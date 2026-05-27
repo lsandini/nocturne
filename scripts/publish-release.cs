@@ -10,6 +10,10 @@
 
 #:project Shared/Shared.csproj
 
+#pragma warning disable IL2026, IL3050 // Script — never trimmed or AOT-compiled.
+
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using static ProcessHelpers;
 
 var repoRoot = Directory.GetCurrentDirectory();
@@ -46,6 +50,7 @@ try
 
     var composePath = Path.Combine(tempDir, "docker-compose.yaml");
     var portainerComposePath = Path.Combine(tempDir, "docker-compose.portainer.yaml");
+    var envMetadataPath = Path.Combine(tempDir, "env-metadata.json");
 
     if (!File.Exists(composePath))
     {
@@ -59,8 +64,19 @@ try
         return 1;
     }
 
+    if (!File.Exists(envMetadataPath))
+    {
+        Console.Error.WriteLine("[publish-release] ERROR: aspire publish did not produce env-metadata.json");
+        return 1;
+    }
+
+    var envMetadata = JsonSerializer.Deserialize<EnvVarMeta[]>(
+        File.ReadAllText(envMetadataPath),
+        new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
     var initScriptSource = Path.Combine(repoRoot, "docs", "postgres", "container-init", "00-init.sh");
-    var envExample = GenerateEnvExample(Path.Combine(tempDir, ".env"));
+    var groups = ParseAspireEnv(Path.Combine(tempDir, ".env"), envMetadata);
+    var envExample = GenerateEnvExample(groups, envMetadata);
 
     // deploy/docker-compose/ — raw aspire output, bind-mount approach.
     var deployDockerComposeDir = Path.Combine(repoRoot, "deploy", "docker-compose");
@@ -77,6 +93,7 @@ try
     Directory.CreateDirectory(deployPortainerDir);
     File.Copy(portainerComposePath, Path.Combine(deployPortainerDir, "docker-compose.yaml"), overwrite: true);
     File.WriteAllText(Path.Combine(deployPortainerDir, ".env.example"), envExample);
+    File.WriteAllText(Path.Combine(deployPortainerDir, "templates.json"), GeneratePortainerTemplate(groups, envMetadata));
     Console.WriteLine("[publish-release] Updated deploy/portainer/");
 
     // docs/diagrams/ — Mermaid architecture diagrams produced by MermaidDiagramPublisher.
@@ -97,9 +114,10 @@ finally
         Directory.Delete(tempDir, recursive: true);
 }
 
-static string GenerateEnvExample(string aspireEnvPath)
+// ── env parsing ───────────────────────────────────────────────────────────────
+
+static EnvVarGroups ParseAspireEnv(string aspireEnvPath, EnvVarMeta[] metadata)
 {
-    // Secret vars — always blanked so users fill them in.
     var secrets = new HashSet<string>
     {
         "POSTGRES_PASSWORD",
@@ -109,13 +127,11 @@ static string GenerateEnvExample(string aspireEnvPath)
         "INSTANCE_KEY",
     };
 
-    // Required config (not secrets, but must be set by the user).
     var requiredConfig = new HashSet<string>
     {
         "BASE_DOMAIN",
     };
 
-    // Optional vars (bot integration config — leave commented out if not using).
     var optional = new HashSet<string>
     {
         "DISCORD_BOT_TOKEN",
@@ -132,11 +148,11 @@ static string GenerateEnvExample(string aspireEnvPath)
         "WHATSAPP_VERIFY_TOKEN",
     };
 
-    var seenVars = new HashSet<string>();
-    var configVars = new List<(string name, string value)>();
-    var requiredConfigVars = new List<(string name, string value)>();
-    var secretVars = new List<(string name, string value)>();
-    var optionalVars = new List<(string name, string value)>();
+    var seen = new HashSet<string>();
+    var configVars = new List<(string, string)>();
+    var requiredConfigVars = new List<(string, string)>();
+    var secretVars = new List<(string, string)>();
+    var optionalVars = new List<(string, string)>();
 
     if (File.Exists(aspireEnvPath))
     {
@@ -149,10 +165,9 @@ static string GenerateEnvExample(string aspireEnvPath)
             if (eqIndex < 0) continue;
 
             var name = line[..eqIndex];
-            var aspireValue = line[(eqIndex + 1)..];
+            var value = line[(eqIndex + 1)..];
 
-            if (!seenVars.Add(name)) continue;
-
+            if (!seen.Add(name)) continue;
             if (name.Contains("_BINDMOUNT_", StringComparison.OrdinalIgnoreCase)) continue;
 
             if (secrets.Contains(name))
@@ -160,11 +175,31 @@ static string GenerateEnvExample(string aspireEnvPath)
             else if (requiredConfig.Contains(name))
                 requiredConfigVars.Add((name, ""));
             else if (optional.Contains(name))
-                optionalVars.Add((name, aspireValue));
+                optionalVars.Add((name, value));
             else
-                configVars.Add((name, aspireValue));
+                configVars.Add((name, value));
         }
     }
+
+    // Fill in defaults from env-metadata for config vars that Aspire emits as empty.
+    var metaDefaults = metadata
+        .Where(m => m.Default is not null)
+        .ToDictionary(m => m.Name, m => m.Default!);
+    configVars = [.. configVars
+        .Select(v => string.IsNullOrEmpty(v.Item2) && metaDefaults.TryGetValue(v.Item1, out var def)
+            ? (v.Item1, def)
+            : v)];
+
+    return new EnvVarGroups(configVars, requiredConfigVars, secretVars, optionalVars);
+}
+
+// ── .env.example ──────────────────────────────────────────────────────────────
+
+static string GenerateEnvExample(EnvVarGroups groups, EnvVarMeta[] metadata)
+{
+    var varComments = metadata
+        .Where(m => m.Description is not null)
+        .ToDictionary(m => m.Name, m => $"# {m.Description}");
 
     var sb = new System.Text.StringBuilder();
     sb.AppendLine("# Nocturne Production Environment");
@@ -175,20 +210,82 @@ static string GenerateEnvExample(string aspireEnvPath)
     sb.AppendLine();
     sb.AppendLine("# -- Configuration ---------------------------------------------");
     sb.AppendLine();
-    foreach (var (name, value) in configVars)
+    foreach (var (name, value) in groups.Config)
         sb.AppendLine($"{name}={value}");
     sb.AppendLine();
     sb.AppendLine("# -- Required (set these before first run) ----------------------");
     sb.AppendLine();
-    foreach (var (name, _) in requiredConfigVars)
+    foreach (var (name, _) in groups.RequiredConfig)
+    {
+        if (varComments.TryGetValue(name, out var comment))
+            sb.AppendLine(comment);
         sb.AppendLine($"{name}=");
-    foreach (var (name, _) in secretVars)
+    }
+    foreach (var (name, _) in groups.Secrets)
         sb.AppendLine($"{name}=");
     sb.AppendLine();
     sb.AppendLine("# -- Optional --------------------------------------------------");
     sb.AppendLine();
-    foreach (var (name, _) in optionalVars)
+    foreach (var (name, _) in groups.Optional)
         sb.AppendLine($"# {name}=");
 
     return sb.ToString();
 }
+
+// ── portainer templates.json ──────────────────────────────────────────────────
+
+static string GeneratePortainerTemplate(EnvVarGroups groups, EnvVarMeta[] metadata)
+{
+    // Config vars have defaults applied by ParseAspireEnv; secrets stay blank.
+    var configValues = groups.Config.ToDictionary(v => v.Name, v => v.Value);
+
+    var envArray = new JsonArray();
+    foreach (var m in metadata)
+    {
+        var defaultValue = configValues.GetValueOrDefault(m.Name);
+
+        var entry = new JsonObject { ["name"] = m.Name, ["label"] = m.Label };
+        if (!string.IsNullOrEmpty(defaultValue))
+            entry["default"] = defaultValue;
+        if (m.Description is not null)
+            entry["description"] = m.Description;
+
+        envArray.Add((JsonNode)entry);
+    }
+
+    var root = new JsonObject
+    {
+        ["version"] = "2",
+        ["templates"] = new JsonArray
+        {
+            new JsonObject
+            {
+                ["type"] = 3,
+                ["title"] = "Nocturne",
+                ["description"] = "Nightscout-compatible diabetes management API with Row Level Security and multi-tenancy.",
+                ["categories"] = new JsonArray(
+                    JsonValue.Create("diabetes"),
+                    JsonValue.Create("nightscout"),
+                    JsonValue.Create("healthcare")),
+                ["platform"] = "linux",
+                ["note"] = "After deployment, configure data connectors (Dexcom, LibreLinkUp, etc.) and chat bot integrations (Discord, Slack, Telegram, WhatsApp) through Settings → Administration in the Nocturne UI. Bot credentials are encrypted at rest.",
+                ["repository"] = new JsonObject
+                {
+                    ["url"] = "https://github.com/nightscout/nocturne",
+                    ["stackfile"] = "deploy/portainer/docker-compose.yaml"
+                },
+                ["env"] = envArray
+            }
+        }
+    };
+
+    return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
+}
+
+record EnvVarGroups(
+    List<(string Name, string Value)> Config,
+    List<(string Name, string Value)> RequiredConfig,
+    List<(string Name, string Value)> Secrets,
+    List<(string Name, string Value)> Optional);
+
+record EnvVarMeta(string Name, string Label, string? Description, string? Default);

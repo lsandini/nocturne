@@ -2,7 +2,10 @@
 #pragma warning disable ASPIREPIPELINES004
 
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Pipelines;
 using Aspire.Hosting.Publishing;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +30,53 @@ public static class PortainerComposePublisherExtensions
             Path.Combine(builder.AppHostDirectory, "..", "..", ".."));
         var initScriptPath = Path.Combine(
             solutionRoot, "docs", "postgres", "container-init", "00-init.sh");
+
+        builder.Pipeline.AddStep(
+            name: "env-metadata",
+            action: async ctx =>
+            {
+                var outputService = ctx.Services.GetRequiredService<IPipelineOutputService>();
+                var outputPath = outputService.GetOutputDirectory();
+
+                var entries = new List<EnvVarMetadataEntry>();
+
+                foreach (var resource in ctx.Model.Resources)
+                {
+                    var meta = resource.Annotations
+                        .OfType<EnvVarMetadataAnnotation>()
+                        .FirstOrDefault();
+                    if (meta is null) continue;
+
+                    var prefix = resource.Name.ToUpperInvariant().Replace("-", "_");
+
+                    if (resource is ParameterResource)
+                    {
+                        entries.Add(new(prefix, meta.Label, meta.Description, null));
+                    }
+                    else
+                    {
+                        entries.Add(new($"{prefix}_IMAGE", meta.Label, meta.Description, meta.Default));
+                        if (meta.PortLabel is not null)
+                            entries.Add(new($"{prefix}_PORT", meta.PortLabel, null, null));
+                    }
+                }
+
+                var json = JsonSerializer.Serialize(entries, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                });
+                await File.WriteAllTextAsync(
+                    Path.Combine(outputPath, "env-metadata.json"),
+                    json,
+                    ctx.CancellationToken);
+
+                ctx.Logger.LogInformation(
+                    "[env-metadata] Wrote env-metadata.json ({Count} entries)", entries.Count);
+            },
+            dependsOn: "publish-compose",
+            requiredBy: WellKnownPipelineSteps.Publish);
 
         builder.Pipeline.AddStep(
             name: "portainer-compose",

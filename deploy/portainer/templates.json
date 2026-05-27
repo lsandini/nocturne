@@ -31,7 +31,7 @@
         {
           "name": "BASE_DOMAIN",
           "label": "Base domain",
-          "description": "Your domain name, e.g. nocturne.example.com"
+          "description": "Root domain only, e.g. example.com (not app.example.com — subdomains are generated per tenant)"
         },
         {
           "name": "INSTANCE_KEY",
