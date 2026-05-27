@@ -72,12 +72,6 @@
   const normalizedSlug = $derived(slug.trim().toLowerCase());
   const debouncedSlug = new Debounced(() => normalizedSlug, 400);
 
-  const slugValidation = $derived.by(() => {
-    const value = debouncedSlug.current;
-    if (!value || value.length < 3) return null;
-    return validateSlug({ slug: value });
-  });
-
   $effect(() => {
     const value = normalizedSlug;
 
@@ -95,10 +89,10 @@
       return;
     }
 
-    const result = slugValidation;
-    if (!result) return;
+    const result = validateSlug({ slug: value });
 
-    if (result.loading) {
+    // loading=true: fetch in progress; !current: result not yet populated
+    if (result.loading || !result.current) {
       validating = true;
       return;
     }
@@ -110,11 +104,10 @@
       return;
     }
 
-    const data = result.current;
-    if (data?.isValid) {
+    if (result.current.isValid) {
       slugValid = true;
     } else {
-      slugError = data?.message ?? "Invalid slug";
+      slugError = result.current.message ?? "Invalid slug";
     }
   });
 
