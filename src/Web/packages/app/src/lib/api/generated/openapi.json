@@ -25739,6 +25739,7 @@
           "EaseOff",
           "Sleep",
           "Exercise",
+          "Liberty",
           "Suspended",
           "Off"
         ],
@@ -25750,6 +25751,7 @@
           "EaseOff",
           "Sleep",
           "Exercise",
+          "Liberty",
           "Suspended",
           "Off"
         ]
@@ -41411,6 +41413,7 @@
           "PumpModeExercise",
           "PumpModeSuspended",
           "PumpModeOff",
+          "PumpModeLiberty",
           "SystemEventAlarm",
           "SystemEventHazard",
           "SystemEventWarning",
@@ -41453,6 +41456,7 @@
           "pump-mode-exercise",
           "pump-mode-suspended",
           "pump-mode-off",
+          "pump-mode-liberty",
           "system-event-alarm",
           "system-event-hazard",
           "system-event-warning",

@@ -27155,6 +27155,7 @@ export enum PumpModeState {
     EaseOff = "EaseOff",
     Sleep = "Sleep",
     Exercise = "Exercise",
+    Liberty = "Liberty",
     Suspended = "Suspended",
     Off = "Off",
 }
@@ -32126,6 +32127,7 @@ export enum ChartColor {
     PumpModeExercise = "pump-mode-exercise",
     PumpModeSuspended = "pump-mode-suspended",
     PumpModeOff = "pump-mode-off",
+    PumpModeLiberty = "pump-mode-liberty",
     SystemEventAlarm = "system-event-alarm",
     SystemEventHazard = "system-event-hazard",
     SystemEventWarning = "system-event-warning",
