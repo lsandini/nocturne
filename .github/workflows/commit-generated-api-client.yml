@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: commit-generated-api-client
+  cancel-in-progress: true
+
 env:
   DOTNET_VERSION: "10.0.x"
   NODE_VERSION: "24"
