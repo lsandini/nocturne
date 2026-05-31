@@ -25,6 +25,13 @@ public class DeduplicationService : IDeduplicationService
     private static readonly long MatchingWindowMillis = (long)MatchingWindow.TotalMilliseconds;
 
     /// <summary>
+    /// How far before the watermark each reconcile chunk re-reads. Covers links whose
+    /// SysCreatedAt straddles a previous batch boundary; re-processing them is idempotent
+    /// because <see cref="MergeDuplicateGroupsAsync"/> is a no-op once a region is merged.
+    /// </summary>
+    private static readonly TimeSpan ReconcileOverlap = TimeSpan.FromMinutes(2);
+
+    /// <summary>
     /// Record types that participate in deduplication, in the order
     /// <see cref="DeduplicateAllAsync"/> processes them.
     /// </summary>
@@ -578,30 +585,37 @@ public class DeduplicationService : IDeduplicationService
     {
         var recordTypeStr = recordType.ToString().ToLowerInvariant();
 
-        // 1. Load primary linked_records for this type, ordered by source timestamp.
-        var primaries = await _context.LinkedRecords
-            .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary)
-            .OrderBy(lr => lr.SourceTimestamp)
-            .ToListAsync(ct);
-
-        // When restricted to candidates, keep only candidate groups plus their event-window
-        // neighbours (other primaries within MatchingWindowMillis), so merges that involve a
-        // candidate are still discovered.
-        if (candidateCanonicalIds != null)
+        List<LinkedRecordEntity> primaries;
+        if (candidateCanonicalIds == null)
         {
-            var relevant = new HashSet<Guid>();
-            foreach (var p in primaries)
-            {
-                if (!candidateCanonicalIds.Contains(p.CanonicalId))
-                    continue;
-                relevant.Add(p.CanonicalId);
-                foreach (var other in primaries)
-                {
-                    if (Math.Abs(other.SourceTimestamp - p.SourceTimestamp) <= MatchingWindowMillis)
-                        relevant.Add(other.CanonicalId);
-                }
-            }
-            primaries = primaries.Where(p => relevant.Contains(p.CanonicalId)).ToList();
+            // Full reconcile: load every primary of this type, ordered by source timestamp.
+            primaries = await _context.LinkedRecords
+                .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary)
+                .OrderBy(lr => lr.SourceTimestamp)
+                .ToListAsync(ct);
+        }
+        else
+        {
+            // Candidate-bounded reconcile: never load all primaries. Load only the candidate
+            // canonicals' primary links to learn their event timestamps, then DB-bound the
+            // neighbour query to [minCandidateTs - window, maxCandidateTs + window]. This keeps
+            // the candidate path O(candidates + window-slice) rather than O(all primaries).
+            var candidatePrimaries = await _context.LinkedRecords
+                .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary
+                             && candidateCanonicalIds.Contains(lr.CanonicalId))
+                .ToListAsync(ct);
+
+            if (candidatePrimaries.Count == 0)
+                return 0;
+
+            var minTs = candidatePrimaries.Min(p => p.SourceTimestamp) - MatchingWindowMillis;
+            var maxTs = candidatePrimaries.Max(p => p.SourceTimestamp) + MatchingWindowMillis;
+
+            primaries = await _context.LinkedRecords
+                .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary
+                             && lr.SourceTimestamp >= minTs && lr.SourceTimestamp <= maxTs)
+                .OrderBy(lr => lr.SourceTimestamp)
+                .ToListAsync(ct);
         }
 
         if (primaries.Count < 2)
@@ -708,6 +722,72 @@ public class DeduplicationService : IDeduplicationService
         }
 
         return merged;
+    }
+
+    /// <inheritdoc />
+    public async Task<ReconcileResult> ReconcileNewLinksAsync(
+        int batchSize,
+        int maxBatches,
+        CancellationToken cancellationToken = default)
+    {
+        var watermark = await GetWatermarkAsync(cancellationToken);
+
+        // Re-read from a little before the watermark so links whose SysCreatedAt straddled the
+        // previous batch's boundary aren't missed. Re-processing is idempotent: once a region is
+        // merged, MergeDuplicateGroupsAsync finds nothing more to collapse there.
+        var cutoff = watermark - ReconcileOverlap;
+
+        var merged = 0;
+        var caughtUp = false;
+        var previousMaxCreated = DateTime.MinValue;
+
+        for (var batchNo = 0; batchNo < maxBatches; batchNo++)
+        {
+            // Tenant-scoped automatically via the global query filter.
+            var batch = await _context.LinkedRecords
+                .Where(lr => lr.SysCreatedAt >= cutoff)
+                .OrderBy(lr => lr.SysCreatedAt)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
+
+            if (batch.Count == 0)
+            {
+                caughtUp = true;
+                break;
+            }
+
+            // Reconcile per record type: parse the lowercased RecordType string back to the enum
+            // and merge each type's candidate canonical groups.
+            foreach (var group in batch.GroupBy(l => l.RecordType))
+            {
+                var type = Enum.Parse<RecordType>(group.Key, ignoreCase: true);
+                var candidateCanonicalIds = group.Select(l => l.CanonicalId).ToHashSet();
+                merged += await MergeDuplicateGroupsAsync(type, candidateCanonicalIds, cancellationToken);
+            }
+
+            var maxCreated = batch.Max(l => l.SysCreatedAt);
+            await SetWatermarkAsync(maxCreated, cancellationToken);
+
+            // Forward-progress guard: if the batch's max SysCreatedAt did not advance past the
+            // previous batch (e.g. many links share the same instant and a full batch sits on one
+            // boundary), re-reading from cutoff would loop forever — so stop here.
+            if (batchNo > 0 && maxCreated <= previousMaxCreated)
+            {
+                caughtUp = true;
+                break;
+            }
+            previousMaxCreated = maxCreated;
+            cutoff = maxCreated - ReconcileOverlap;
+
+            // A partial batch means we've drained everything at/after the cutoff.
+            if (batch.Count < batchSize)
+            {
+                caughtUp = true;
+                break;
+            }
+        }
+
+        return new ReconcileResult(merged, caughtUp);
     }
 
     private async Task<bool> RecordExistsAsync(string recordType, Guid recordId, CancellationToken ct)
@@ -1619,12 +1699,21 @@ public class DeduplicationService : IDeduplicationService
     /// </summary>
     internal async Task SetWatermarkAsync(DateTime value, CancellationToken ct)
     {
+        // Npgsql requires Kind=Utc to persist a timestamptz; SQLite tests won't catch a bad caller.
+        value = value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+
         var state = await _context.DedupReconcileState
             .Where(s => s.TenantId == _context.TenantId)
             .FirstOrDefaultAsync(ct);
 
         if (state is null)
         {
+            // single-threaded per tenant; PK guards accidental concurrent insert
             _context.DedupReconcileState.Add(new DedupReconcileStateEntity
             {
                 TenantId = _context.TenantId,

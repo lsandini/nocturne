@@ -11,10 +11,11 @@ using Nocturne.Infrastructure.Data.Services;
 namespace Nocturne.Infrastructure.Data.Tests.Services;
 
 /// <summary>
-/// Tests for the reusable per-record criteria + deleted-status loader used by
-/// dedup reconciliation. Verifies that <see cref="DeduplicationService"/> can
-/// load each record's <see cref="MatchCriteria"/> alongside its soft-deleted
-/// status, keyed by record id, even for soft-deleted rows.
+/// Tests for dedup reconciliation in <see cref="DeduplicationService"/>: the reusable
+/// per-record criteria + deleted-status loader (<see cref="MatchCriteria"/> plus soft-deleted
+/// status keyed by record id), merging duplicate canonical groups (full and candidate-bounded,
+/// including transitive chains), the per-tenant reconciliation watermark round-trip, and the
+/// watermark-bounded chunked reconcile pass over newly-created links.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Category", "Deduplication")]
@@ -181,6 +182,128 @@ public class DeduplicationReconcileTests : IDisposable
     }
 
     [Fact]
+    public async Task MergeDuplicateGroupsAsync_MergesTransitiveThreeGroupChain()
+    {
+        var t = DateTime.UtcNow;
+        // Three groups 20s apart: endpoints are 40s apart (> the 30s window) but connect
+        // transitively through the middle group, so all three must collapse to one.
+        var a = await AddCarb(t, "mylife-connector", 50);
+        var b = await AddCarb(t.AddSeconds(20), "glooko-connector", 50);
+        var c = await AddCarb(t.AddSeconds(40), "libre-connector", 50);
+        AddPrimaryLink(RecordType.CarbIntake, a, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, b, ToMills(t.AddSeconds(20)), "glooko-connector");
+        AddPrimaryLink(RecordType.CarbIntake, c, ToMills(t.AddSeconds(40)), "libre-connector");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(2);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(1);
+        links.Count(l => l.IsPrimary).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task MergeDuplicateGroupsAsync_CandidatePath_MergesCandidateWithNeighbour()
+    {
+        var t = DateTime.UtcNow;
+        var mylife = await AddCarb(t, "mylife-connector", 50);
+        var glooko = await AddCarb(t.AddSeconds(20), "glooko-connector", 50);
+        AddPrimaryLink(RecordType.CarbIntake, mylife, ToMills(t), "mylife-connector");
+        var glookoCanonical = AddPrimaryLink(RecordType.CarbIntake, glooko, ToMills(t.AddSeconds(20)), "glooko-connector");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(
+            RecordType.CarbIntake,
+            new HashSet<Guid> { glookoCanonical },
+            CancellationToken.None);
+
+        merged.Should().Be(1);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task MergeDuplicateGroupsAsync_CandidatePath_LeavesUnrelatedPairAlone()
+    {
+        var t = DateTime.UtcNow;
+        // Candidate group plus its in-window neighbour (these should merge).
+        var candA = await AddCarb(t, "mylife-connector", 50);
+        var candB = await AddCarb(t.AddSeconds(20), "glooko-connector", 50);
+        var candCanonical = AddPrimaryLink(RecordType.CarbIntake, candA, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, candB, ToMills(t.AddSeconds(20)), "glooko-connector");
+
+        // A SEPARATE unrelated matching pair far away in time — must NOT be touched.
+        var farT = t.AddHours(5);
+        var farA = await AddCarb(farT, "mylife-connector", 80);
+        var farB = await AddCarb(farT.AddSeconds(20), "glooko-connector", 80);
+        AddPrimaryLink(RecordType.CarbIntake, farA, ToMills(farT), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, farB, ToMills(farT.AddSeconds(20)), "glooko-connector");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(
+            RecordType.CarbIntake,
+            new HashSet<Guid> { candCanonical },
+            CancellationToken.None);
+
+        // Only the candidate region was reconciled: 1 merge, and the far pair is untouched.
+        merged.Should().Be(1);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        // candidate pair collapsed to 1 canonical; far pair still 2 distinct canonicals => 3 total.
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(3);
+        // The far pair still has its two separate primaries.
+        var farLinks = links.Where(l => l.RecordId == farA || l.RecordId == farB).ToList();
+        farLinks.Select(l => l.CanonicalId).Distinct().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ReconcileNewLinksAsync_MergesGroupsWithRecentLinks()
+    {
+        var now = DateTime.UtcNow;
+        await _service.SetWatermarkAsync(now.AddHours(-1), CancellationToken.None);
+
+        var t = now.AddMinutes(-5);
+        var mylife = await AddCarb(t, "mylife-connector", 50);
+        var glooko = await AddCarb(t.AddSeconds(20), "glooko-connector", 50);
+        AddPrimaryLink(RecordType.CarbIntake, mylife, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, glooko, ToMills(t.AddSeconds(20)), "glooko-connector");
+        await _context.SaveChangesAsync();
+        await SetAllLinkSysCreatedAt(now);
+
+        var result = await _service.ReconcileNewLinksAsync(5000, 10, CancellationToken.None);
+
+        result.GroupsMerged.Should().Be(1);
+        result.CaughtUp.Should().BeTrue();
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(1);
+
+        var watermark = await _service.GetWatermarkAsync(CancellationToken.None);
+        watermark.Should().BeCloseTo(now, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task ReconcileNewLinksAsync_IgnoresLinksBeforeWatermark()
+    {
+        var now = DateTime.UtcNow;
+        await _service.SetWatermarkAsync(now, CancellationToken.None);
+
+        // Links created an hour ago — well before (watermark - overlap), so out of scope.
+        var t = now.AddHours(-1);
+        var mylife = await AddCarb(t, "mylife-connector", 50);
+        var glooko = await AddCarb(t.AddSeconds(20), "glooko-connector", 50);
+        AddPrimaryLink(RecordType.CarbIntake, mylife, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, glooko, ToMills(t.AddSeconds(20)), "glooko-connector");
+        await _context.SaveChangesAsync();
+        await SetAllLinkSysCreatedAt(now.AddHours(-1));
+
+        var result = await _service.ReconcileNewLinksAsync(5000, 10, CancellationToken.None);
+
+        result.GroupsMerged.Should().Be(0);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(2);
+    }
+
+    [Fact]
     public async Task Watermark_RoundTrips_DefaultsToMinValue()
     {
         (await _service.GetWatermarkAsync(CancellationToken.None)).Should().Be(DateTime.MinValue);
@@ -228,15 +351,17 @@ public class DeduplicationReconcileTests : IDisposable
     }
 
     /// <summary>
-    /// Adds a primary <see cref="LinkedRecordEntity"/> with a fresh canonical id for the test tenant.
+    /// Adds a primary <see cref="LinkedRecordEntity"/> with a fresh canonical id for the test tenant
+    /// and returns that canonical id (handy for candidate-bounded reconcile tests).
     /// </summary>
-    private void AddPrimaryLink(RecordType recordType, Guid recordId, long mills, string source)
+    private Guid AddPrimaryLink(RecordType recordType, Guid recordId, long mills, string source)
     {
+        var canonicalId = Guid.CreateVersion7();
         _context.LinkedRecords.Add(new LinkedRecordEntity
         {
             Id = Guid.CreateVersion7(),
             TenantId = TestTenantId,
-            CanonicalId = Guid.CreateVersion7(),
+            CanonicalId = canonicalId,
             RecordType = recordType.ToString().ToLowerInvariant(),
             RecordId = recordId,
             SourceTimestamp = mills,
@@ -244,6 +369,24 @@ public class DeduplicationReconcileTests : IDisposable
             IsPrimary = true,
             SysCreatedAt = DateTime.UtcNow
         });
+        return canonicalId;
+    }
+
+    /// <summary>
+    /// Overrides <see cref="LinkedRecordEntity.SysCreatedAt"/> on all of the tenant's links.
+    /// The SaveChanges interceptor stamps SysCreatedAt = now only on <c>Added</c> rows, so the
+    /// initializer value is ignored on insert; updating already-persisted rows lets tests pin a
+    /// deterministic ingestion time for the watermark-bounded reconcile pass.
+    /// </summary>
+    private async Task SetAllLinkSysCreatedAt(DateTime sysCreatedAt)
+    {
+        var utc = DateTime.SpecifyKind(sysCreatedAt, DateTimeKind.Utc);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().ToListAsync();
+        foreach (var link in links)
+        {
+            link.SysCreatedAt = utc;
+        }
+        await _context.SaveChangesAsync();
     }
 
     /// <summary>
