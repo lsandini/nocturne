@@ -32,23 +32,6 @@ public class DeduplicationService : IDeduplicationService
     private static readonly TimeSpan ReconcileOverlap = TimeSpan.FromMinutes(2);
 
     /// <summary>
-    /// Record types that participate in deduplication, in the order
-    /// <see cref="DeduplicateAllAsync"/> processes them.
-    /// </summary>
-    private static readonly RecordType[] DedupableTypes =
-    [
-        RecordType.SensorGlucose,
-        RecordType.Bolus,
-        RecordType.CarbIntake,
-        RecordType.BGCheck,
-        RecordType.DeviceEvent,
-        RecordType.Note,
-        RecordType.BolusCalculation,
-        RecordType.TempBasal,
-        RecordType.StateSpan
-    ];
-
-    /// <summary>
     /// A record's match criteria paired with its soft-deleted status, keyed by record id
     /// when returned from <see cref="LoadRecordInfoAsync"/>.
     /// </summary>
