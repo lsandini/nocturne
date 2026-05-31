@@ -1,7 +1,7 @@
 {
   "name": "@nocturne/bot",
   "version": "1.0.0",
-  "description": "Multi-platform messaging bot for Nocturne (Discord, Telegram, Slack, WhatsApp)",
+  "description": "Multi-platform messaging bot for Nocturne (Discord, Telegram, Slack, WhatsApp, Resend)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -20,6 +20,7 @@
     "@chat-adapter/telegram": "4.20.2",
     "@chat-adapter/whatsapp": "4.20.2",
     "@chat-adapter/state-pg": "4.20.2",
+    "@resend/chat-sdk-adapter": "4.20.2",
     "winston": "^3.11.0"
   },
   "devDependencies": {
