@@ -85,6 +85,20 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     protected abstract string ConnectorName { get; }
 
     /// <summary>
+    /// Called once after the initial startup delay, before the poll loop begins.
+    /// Override to start real-time listeners (e.g. webhooks, SSE, WebSocket connections).
+    /// The default implementation is a no-op.
+    /// </summary>
+    protected virtual Task StartRealtimeListenersAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Called when the service is shutting down, after the poll loop exits.
+    /// Override to tear down any real-time listeners started in <see cref="StartRealtimeListenersAsync"/>.
+    /// The default implementation is a no-op.
+    /// </summary>
+    protected virtual Task StopRealtimeListenersAsync() => Task.CompletedTask;
+
+    /// <summary>
     /// Performs a single sync operation using the connector service.
     /// Services should be resolved from the provided <paramref name="scopeProvider"/>
     /// which has the tenant context already set.
@@ -149,6 +163,18 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
 
         try
         {
+            try
+            {
+                await StartRealtimeListenersAsync(stoppingToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Logger.LogWarning(
+                    ex,
+                    "Failed to start real-time listeners for {ConnectorName}, falling back to polling",
+                    ConnectorName);
+            }
+
             // Poll every minute; each tenant is only synced when its own
             // SyncIntervalMinutes has elapsed since its last sync.
             using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
@@ -171,6 +197,18 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
         }
         finally
         {
+            try
+            {
+                await StopRealtimeListenersAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(
+                    ex,
+                    "Failed to stop real-time listeners for {ConnectorName}",
+                    ConnectorName);
+            }
+
             Logger.LogInformation(
                 "{ConnectorName} connector background service stopped",
                 ConnectorName);
