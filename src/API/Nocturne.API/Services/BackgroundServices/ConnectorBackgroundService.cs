@@ -36,6 +36,14 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     private readonly ConcurrentDictionary<Guid, DateTime> _lastSyncByTenant = new();
 
     /// <summary>
+    /// Tracks the last time a nudge (immediate sync request) was accepted per tenant,
+    /// used to debounce rapid consecutive calls.
+    /// </summary>
+    private readonly ConcurrentDictionary<Guid, DateTime> _lastNudgeByTenant = new();
+
+    private static readonly TimeSpan NudgeDebounceWindow = TimeSpan.FromSeconds(10);
+
+    /// <summary>
     /// Initialises a new <see cref="ConnectorBackgroundService{TConfig}"/>.
     /// </summary>
     /// <param name="serviceProvider">Root DI service provider; a new scope is created per tenant sync.</param>
@@ -47,6 +55,28 @@ public abstract class ConnectorBackgroundService<TConfig> : BackgroundService
     {
         ServiceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// Requests an immediate sync for the specified tenant on the next poll cycle.
+    /// Removes the tenant's last-sync timestamp so the interval check passes immediately.
+    /// Calls within <see cref="NudgeDebounceWindow"/> of a previous nudge for the same
+    /// tenant are silently ignored to prevent event storms.
+    /// </summary>
+    /// <param name="tenantId">The tenant to sync immediately.</param>
+    protected void RequestImmediateSync(Guid tenantId)
+    {
+        var now = DateTime.UtcNow;
+
+        if (_lastNudgeByTenant.TryGetValue(tenantId, out var lastNudge) && now - lastNudge < NudgeDebounceWindow)
+            return;
+
+        _lastNudgeByTenant[tenantId] = now;
+        _lastSyncByTenant.TryRemove(tenantId, out _);
+
+        Logger.LogDebug(
+            "Immediate sync requested for {ConnectorName} tenant {TenantId}",
+            ConnectorName, tenantId);
     }
 
     /// <summary>
