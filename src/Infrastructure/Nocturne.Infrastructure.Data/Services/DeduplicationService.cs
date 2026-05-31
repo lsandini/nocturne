@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Nocturne.Core.Contracts.Infrastructure;
 using Nocturne.Core.Models;
 using Nocturne.Infrastructure.Data.Entities;
+using Nocturne.Infrastructure.Data.Entities.V4;
 using Nocturne.Infrastructure.Data.Mappers;
 
 namespace Nocturne.Infrastructure.Data.Services;
@@ -22,6 +23,29 @@ public class DeduplicationService : IDeduplicationService
 
     private static readonly TimeSpan MatchingWindow = TimeSpan.FromSeconds(30);
     private static readonly long MatchingWindowMillis = (long)MatchingWindow.TotalMilliseconds;
+
+    /// <summary>
+    /// Record types that participate in deduplication, in the order
+    /// <see cref="DeduplicateAllAsync"/> processes them.
+    /// </summary>
+    private static readonly RecordType[] DedupableTypes =
+    [
+        RecordType.SensorGlucose,
+        RecordType.Bolus,
+        RecordType.CarbIntake,
+        RecordType.BGCheck,
+        RecordType.DeviceEvent,
+        RecordType.Note,
+        RecordType.BolusCalculation,
+        RecordType.TempBasal,
+        RecordType.StateSpan
+    ];
+
+    /// <summary>
+    /// A record's match criteria paired with its soft-deleted status, keyed by record id
+    /// when returned from <see cref="LoadRecordInfoAsync"/>.
+    /// </summary>
+    internal sealed record RecordInfo(MatchCriteria Criteria, bool IsDeleted);
 
     private static readonly ConcurrentDictionary<Guid, DeduplicationJobStatus> _runningJobs = new();
     private static readonly ConcurrentDictionary<Guid, CancellationTokenSource> _jobCancellations = new();
@@ -546,6 +570,134 @@ public class DeduplicationService : IDeduplicationService
         };
     }
 
+    // --- Per-type MatchCriteria builders ---
+    // Single source of truth for each record type's MatchCriteria. Both the inline
+    // dedup pass (DeduplicateAllAsync) and the reconciliation loader (LoadRecordInfoAsync)
+    // call these so the criteria definitions cannot drift between the two code paths.
+
+    private static MatchCriteria BuildCriteria(SensorGlucoseEntity e) =>
+        new() { GlucoseValue = e.Mgdl, GlucoseTolerance = 5.0 };
+
+    private static MatchCriteria BuildCriteria(BolusEntity b) =>
+        new() { Insulin = b.Insulin, InsulinTolerance = 0.05 };
+
+    private static MatchCriteria BuildCriteria(CarbIntakeEntity c) =>
+        new() { Carbs = c.Carbs, CarbsTolerance = 1.0 };
+
+    private static MatchCriteria BuildCriteria(BGCheckEntity bg) =>
+        new() { GlucoseValue = bg.Glucose, GlucoseTolerance = 5.0 };
+
+    private static MatchCriteria BuildCriteria(DeviceEventEntity d) =>
+        new() { EventType = d.EventType };
+
+    private static MatchCriteria BuildNoteCriteria() =>
+        new();
+
+    private static MatchCriteria BuildCriteria(BolusCalculationEntity bc) =>
+        new() { Carbs = bc.CarbInput ?? 0, CarbsTolerance = 1.0 };
+
+    private static MatchCriteria BuildCriteria(TempBasalEntity t) =>
+        new() { Rate = t.Rate, RateTolerance = 0.05 };
+
+    private static MatchCriteria BuildCriteria(StateSpanEntity s) =>
+        new()
+        {
+            Category = Enum.TryParse<StateSpanCategory>(s.Category, ignoreCase: true, out var cat)
+                ? cat : null,
+            State = s.State
+        };
+
+    /// <summary>
+    /// Loads, for each requested record id, its <see cref="MatchCriteria"/> and whether the
+    /// underlying record is soft-deleted. Soft-deleted rows are included via
+    /// <c>IgnoreQueryFilters</c>; record types without a <c>DeletedAt</c> column report
+    /// <see cref="RecordInfo.IsDeleted"/> as <see langword="false"/>.
+    /// </summary>
+    private async Task<Dictionary<Guid, RecordInfo>> LoadRecordInfoAsync(
+        RecordType recordType, HashSet<Guid> ids, CancellationToken ct)
+    {
+        if (ids.Count == 0)
+            return new Dictionary<Guid, RecordInfo>();
+
+        switch (recordType)
+        {
+            case RecordType.SensorGlucose:
+            {
+                var records = await _context.SensorGlucose.IgnoreQueryFilters()
+                    .Where(e => ids.Contains(e.Id)).ToListAsync(ct);
+                return records.ToDictionary(e => e.Id,
+                    e => new RecordInfo(BuildCriteria(e), e.DeletedAt != null));
+            }
+            case RecordType.Bolus:
+            {
+                var records = await _context.Boluses.IgnoreQueryFilters()
+                    .Where(b => ids.Contains(b.Id)).ToListAsync(ct);
+                return records.ToDictionary(b => b.Id,
+                    b => new RecordInfo(BuildCriteria(b), b.DeletedAt != null));
+            }
+            case RecordType.CarbIntake:
+            {
+                var records = await _context.CarbIntakes.IgnoreQueryFilters()
+                    .Where(c => ids.Contains(c.Id)).ToListAsync(ct);
+                return records.ToDictionary(c => c.Id,
+                    c => new RecordInfo(BuildCriteria(c), c.DeletedAt != null));
+            }
+            case RecordType.BGCheck:
+            {
+                var records = await _context.BGChecks.IgnoreQueryFilters()
+                    .Where(bg => ids.Contains(bg.Id)).ToListAsync(ct);
+                return records.ToDictionary(bg => bg.Id,
+                    bg => new RecordInfo(BuildCriteria(bg), bg.DeletedAt != null));
+            }
+            case RecordType.DeviceEvent:
+            {
+                var records = await _context.DeviceEvents.IgnoreQueryFilters()
+                    .Where(d => ids.Contains(d.Id)).ToListAsync(ct);
+                return records.ToDictionary(d => d.Id,
+                    d => new RecordInfo(BuildCriteria(d), d.DeletedAt != null));
+            }
+            case RecordType.Note:
+            {
+                var records = await _context.Notes.IgnoreQueryFilters()
+                    .Where(n => ids.Contains(n.Id)).ToListAsync(ct);
+                return records.ToDictionary(n => n.Id,
+                    n => new RecordInfo(BuildNoteCriteria(), n.DeletedAt != null));
+            }
+            case RecordType.BolusCalculation:
+            {
+                var records = await _context.BolusCalculations.IgnoreQueryFilters()
+                    .Where(bc => ids.Contains(bc.Id)).ToListAsync(ct);
+                return records.ToDictionary(bc => bc.Id,
+                    bc => new RecordInfo(BuildCriteria(bc), bc.DeletedAt != null));
+            }
+            case RecordType.TempBasal:
+            {
+                var records = await _context.TempBasals.IgnoreQueryFilters()
+                    .Where(t => ids.Contains(t.Id)).ToListAsync(ct);
+                return records.ToDictionary(t => t.Id,
+                    t => new RecordInfo(BuildCriteria(t), t.DeletedAt != null));
+            }
+            case RecordType.StateSpan:
+            {
+                // StateSpanEntity has no DeletedAt column, so IsDeleted is always false.
+                var records = await _context.StateSpans.IgnoreQueryFilters()
+                    .Where(s => ids.Contains(s.Id)).ToListAsync(ct);
+                return records.ToDictionary(s => s.Id,
+                    s => new RecordInfo(BuildCriteria(s), false));
+            }
+            default:
+                return new Dictionary<Guid, RecordInfo>();
+        }
+    }
+
+    /// <summary>
+    /// Internal test seam over <see cref="LoadRecordInfoAsync"/>. Exposed to the
+    /// test assembly via <c>InternalsVisibleTo</c>; not part of the public API.
+    /// </summary>
+    internal Task<Dictionary<Guid, RecordInfo>> LoadRecordInfoForTestAsync(
+        RecordType recordType, HashSet<Guid> ids, CancellationToken ct = default)
+        => LoadRecordInfoAsync(recordType, ids, ct);
+
     private async Task<Func<Guid, MatchCriteria, bool>> LoadMatcherAsync(
         RecordType recordType, HashSet<Guid> ids, CancellationToken ct)
     {
@@ -815,7 +967,7 @@ public class DeduplicationService : IDeduplicationService
                     e.Id,
                     new DateTimeOffset(e.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     e.DataSource ?? "unknown",
-                    new MatchCriteria { GlucoseValue = e.Mgdl, GlucoseTolerance = 5.0 }),
+                    BuildCriteria(e)),
                 "SensorGlucose", totalRecords, processed, progress, cancellationToken);
             processed += sensorGlucoseResult.processed;
             groupsCreated += sensorGlucoseResult.groups;
@@ -830,7 +982,7 @@ public class DeduplicationService : IDeduplicationService
                     b.Id,
                     new DateTimeOffset(b.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     b.DataSource ?? "unknown",
-                    new MatchCriteria { Insulin = b.Insulin, InsulinTolerance = 0.05 }),
+                    BuildCriteria(b)),
                 "Boluses", totalRecords, processed, progress, cancellationToken);
             processed += bolusResult.processed;
             groupsCreated += bolusResult.groups;
@@ -845,7 +997,7 @@ public class DeduplicationService : IDeduplicationService
                     c.Id,
                     new DateTimeOffset(c.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     c.DataSource ?? "unknown",
-                    new MatchCriteria { Carbs = c.Carbs, CarbsTolerance = 1.0 }),
+                    BuildCriteria(c)),
                 "CarbIntakes", totalRecords, processed, progress, cancellationToken);
             processed += carbIntakeResult.processed;
             groupsCreated += carbIntakeResult.groups;
@@ -860,7 +1012,7 @@ public class DeduplicationService : IDeduplicationService
                     bg.Id,
                     new DateTimeOffset(bg.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     bg.DataSource ?? "unknown",
-                    new MatchCriteria { GlucoseValue = bg.Glucose, GlucoseTolerance = 5.0 }),
+                    BuildCriteria(bg)),
                 "BGChecks", totalRecords, processed, progress, cancellationToken);
             processed += bgCheckResult.processed;
             groupsCreated += bgCheckResult.groups;
@@ -875,7 +1027,7 @@ public class DeduplicationService : IDeduplicationService
                     d.Id,
                     new DateTimeOffset(d.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     d.DataSource ?? "unknown",
-                    new MatchCriteria { EventType = d.EventType }),
+                    BuildCriteria(d)),
                 "DeviceEvents", totalRecords, processed, progress, cancellationToken);
             processed += deviceEventResult.processed;
             groupsCreated += deviceEventResult.groups;
@@ -890,7 +1042,7 @@ public class DeduplicationService : IDeduplicationService
                     n.Id,
                     new DateTimeOffset(n.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     n.DataSource ?? "unknown",
-                    new MatchCriteria()),
+                    BuildNoteCriteria()),
                 "Notes", totalRecords, processed, progress, cancellationToken);
             processed += noteResult.processed;
             groupsCreated += noteResult.groups;
@@ -905,7 +1057,7 @@ public class DeduplicationService : IDeduplicationService
                     bc.Id,
                     new DateTimeOffset(bc.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     bc.DataSource ?? "unknown",
-                    new MatchCriteria { Carbs = bc.CarbInput ?? 0, CarbsTolerance = 1.0 }),
+                    BuildCriteria(bc)),
                 "BolusCalculations", totalRecords, processed, progress, cancellationToken);
             processed += bolusCalcResult.processed;
             groupsCreated += bolusCalcResult.groups;
@@ -920,7 +1072,7 @@ public class DeduplicationService : IDeduplicationService
                     t.Id,
                     new DateTimeOffset(t.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     t.DataSource ?? "unknown",
-                    new MatchCriteria { Rate = t.Rate, RateTolerance = 0.05 }),
+                    BuildCriteria(t)),
                 "TempBasals", totalRecords, processed, progress, cancellationToken);
             processed += tempBasalResult.processed;
             groupsCreated += tempBasalResult.groups;
@@ -935,12 +1087,7 @@ public class DeduplicationService : IDeduplicationService
                     s.Id,
                     new DateTimeOffset(s.StartTimestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                     s.Source ?? "unknown",
-                    new MatchCriteria
-                    {
-                        Category = Enum.TryParse<StateSpanCategory>(s.Category, ignoreCase: true, out var cat)
-                            ? cat : null,
-                        State = s.State
-                    }),
+                    BuildCriteria(s)),
                 "StateSpans", totalRecords, processed, progress, cancellationToken);
             processed += stateSpanResult.processed;
             groupsCreated += stateSpanResult.groups;
