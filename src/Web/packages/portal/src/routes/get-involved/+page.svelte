@@ -213,8 +213,10 @@
   <!-- Hero -->
   <section class="pt-14 pb-10">
     <div>
-      <span class="gi-eyebrow">
-        <span class="gi-dot" style:background={ACCENT}></span>
+      <span
+        class="inline-flex items-center gap-2 whitespace-nowrap text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground bg-[color-mix(in_oklch,var(--card),transparent_50%)] border border-border px-3 py-1.5 rounded-full backdrop-blur-sm"
+      >
+        <span class="w-1.5 h-1.5 rounded-full inline-block bg-[--accent-dot]" style="--accent-dot: {ACCENT}"></span>
         Get Involved
       </span>
       <h1
@@ -230,14 +232,18 @@
         start.
       </p>
       <div class="flex gap-2.5 flex-wrap">
-        <a href="#tasks" class="gi-btn gi-btn-accent gi-btn-lg">
+        <a
+          href="#tasks"
+          class="inline-flex items-center justify-center gap-2 rounded-lg font-medium text-[15px] h-[46px] px-6 whitespace-nowrap no-underline cursor-pointer transition-all duration-150 bg-[--gi-accent] text-white hover:brightness-108"
+          style="--gi-accent: {ACCENT}"
+        >
           Find a task <ArrowRight class="w-4 h-4" strokeWidth={2.5} />
         </a>
         <a
           href={LINKS.discord}
           target="_blank"
           rel="noopener noreferrer"
-          class="gi-btn gi-btn-outline gi-btn-lg"
+          class="inline-flex items-center justify-center gap-2 rounded-lg font-medium text-[15px] h-[46px] px-6 whitespace-nowrap no-underline cursor-pointer transition-all duration-150 bg-transparent border border-border text-foreground hover:bg-accent"
         >
           <MessageCircle class="w-4 h-4" /> Join the Discord
         </a>
@@ -247,9 +253,13 @@
     <!-- Stat widgets -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-10">
       {#each STATS as stat}
-        <div class="gi-stat-widget">
-          <p class="gi-stat-label">{stat.label}</p>
-          <div class="gi-stat-value">{stat.value}</div>
+        <div class="bg-card border border-border rounded-xl p-5">
+          <p class="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted-foreground m-0 mb-2.5">
+            {stat.label}
+          </p>
+          <div class="text-4xl font-bold tabular-nums tracking-[-0.03em] leading-none text-foreground">
+            {stat.value}
+          </div>
         </div>
       {/each}
     </div>
@@ -258,7 +268,12 @@
   <!-- Ways to help -->
   <section class="py-8" id="ways">
     <div class="mb-6">
-      <p class="gi-section-eyebrow">Ways to help</p>
+      <p
+        class="text-xs font-semibold tracking-[0.1em] uppercase m-0 mb-3.5"
+        style="color: {ACCENT}"
+      >
+        Ways to help
+      </p>
       <h2 class="text-[28px] font-bold tracking-tight">
         Seven ways to contribute
       </h2>
@@ -269,14 +284,15 @@
           href={resolveHref(lane.href)}
           target={lane.external ? "_blank" : undefined}
           rel={lane.external ? "noopener noreferrer" : undefined}
-          class="gi-lane-card"
+          class="gi-lane-card flex flex-row items-start gap-4 bg-card border border-border rounded-xl p-5 transition-[border-color,transform] duration-200 no-underline text-inherit"
           class:gi-lane-highlight={lane.highlight}
+          style="--lane-accent: {lane.accent}"
         >
           <div
-            class="gi-lane-icon"
-            style:background="color-mix(in oklch, {lane.accent}, transparent 85%)"
+            class="w-[42px] h-[42px] rounded-[11px] grid place-items-center shrink-0"
+            style="background: color-mix(in oklch, {lane.accent}, transparent 85%)"
           >
-            <lane.icon class="w-[22px] h-[22px]" style:color={lane.accent} />
+            <lane.icon class="w-[22px] h-[22px]" color={lane.accent} />
           </div>
           <div class="flex-1 flex flex-col">
             <h3 class="text-lg font-semibold mb-1.5 tracking-tight">
@@ -286,8 +302,8 @@
               {lane.desc}
             </p>
             <span
-              class="gi-lane-link"
-              style:color={lane.accent}
+              class="gi-lane-link inline-flex items-center gap-1.5 mt-3 text-sm font-semibold"
+              style="color: {lane.accent}"
             >
               {lane.cta}
               {#if lane.external}
@@ -304,11 +320,14 @@
 
   <!-- Open tasks -->
   <section class="py-8" id="tasks">
-    <div
-      class="mb-5 flex items-end justify-between gap-4 flex-wrap"
-    >
+    <div class="mb-5 flex items-end justify-between gap-4 flex-wrap">
       <div>
-        <p class="gi-section-eyebrow">Open tasks right now</p>
+        <p
+          class="text-xs font-semibold tracking-[0.1em] uppercase m-0 mb-3.5"
+          style="color: {ACCENT}"
+        >
+          Open tasks right now
+        </p>
         <h2 class="text-[28px] font-bold tracking-tight m-0">
           Tagged <code class="text-xl">get-involved</code>
         </h2>
@@ -317,26 +336,30 @@
         href={LINKS.githubLabel}
         target="_blank"
         rel="noopener noreferrer"
-        class="gi-btn gi-btn-outline"
+        class="inline-flex items-center justify-center gap-2 rounded-lg font-medium text-sm h-[38px] px-4 whitespace-nowrap no-underline cursor-pointer transition-all duration-150 bg-transparent border border-border text-foreground hover:bg-accent"
       >
         Open the tracker <ExternalLink class="w-3.5 h-3.5" />
       </a>
     </div>
 
     <!-- Issue feed card -->
-    <div class="gi-feed-card">
-      <div class="gi-feed-head">
+    <div class="border border-border rounded-[14px] bg-card overflow-hidden">
+      <div
+        class="flex items-center gap-3 px-[22px] py-[18px] border-b border-border"
+        style="background: color-mix(in oklch, var(--card), var(--background) 35%)"
+      >
         <img
           src="/logos/github.png"
           alt="GitHub"
           class="w-[22px] h-[22px] rounded-[5px] object-contain"
           onerror="this.style.display='none'"
         />
-        <span class="font-mono text-[13px] text-muted-foreground"
-          >nightscout/nocturne</span
+        <span class="font-mono text-[13px] text-muted-foreground">nightscout/nocturne</span>
+        <span
+          class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold py-1 px-2.5 rounded-full ml-auto"
+          style="background: color-mix(in oklch, {ACCENT}, transparent 85%); color: {ACCENT}; border: 1px solid color-mix(in oklch, {ACCENT}, transparent 70%)"
         >
-        <span class="gi-tag-chip">
-          <Tag class="w-[13px] h-[13px]" style:color={ACCENT} />
+          <Tag class="w-[13px] h-[13px]" color={ACCENT} />
           get-involved
         </span>
       </div>
@@ -346,15 +369,14 @@
           href={LINKS.githubLabel}
           target="_blank"
           rel="noopener noreferrer"
-          class="gi-issue-row"
+          class="gi-issue-row flex items-center gap-3.5 px-[18px] py-[13px] border-b border-border transition-[background] duration-150 cursor-pointer no-underline text-inherit hover:bg-[color-mix(in_oklch,var(--card),transparent_20%)] last:border-b-0"
         >
-          <div class="gi-issue-dot"></div>
+          <div class="gi-issue-dot shrink-0 w-3.5 h-3.5 rounded-full relative mt-[3px]" style="border: 2px solid {ACCENT}">
+          </div>
           <div class="flex-1 min-w-0">
             <p class="text-[15px] font-semibold m-0 flex items-baseline gap-2 flex-wrap">
               {issue.title}
-              <span class="font-mono text-[13px] font-medium text-muted-foreground"
-                >#{issue.num}</span
-              >
+              <span class="font-mono text-[13px] font-medium text-muted-foreground">#{issue.num}</span>
             </p>
             <div class="flex items-center gap-2 flex-wrap mt-1.5">
               {#each issue.labels as label}
@@ -363,19 +385,15 @@
                   bg: "var(--muted)",
                 }}
                 <span
-                  class="gi-label-pill"
-                  style:color={colors.fg}
-                  style:background={colors.bg}
-                  style:border-color="color-mix(in oklch, {colors.fg}, transparent 70%)"
+                  class="text-[11px] font-semibold tracking-[0.01em] whitespace-nowrap py-[3px] px-[9px] rounded-full"
+                  style="color: {colors.fg}; background: {colors.bg}; border: 1px solid color-mix(in oklch, {colors.fg}, transparent 70%)"
                 >
                   {label}
                 </span>
               {/each}
             </div>
           </div>
-          <div
-            class="flex items-center gap-4 shrink-0 text-muted-foreground text-[13px]"
-          >
+          <div class="flex items-center gap-4 shrink-0 text-muted-foreground text-[13px]">
             <span class="inline-flex items-center gap-1.5">
               <MessageSquare class="w-3.5 h-3.5" /> {issue.comments}
             </span>
@@ -384,17 +402,13 @@
         </a>
       {/each}
 
-      <div
-        class="flex items-center justify-between gap-3 px-[22px] py-4"
-      >
-        <span class="text-muted-foreground text-[13px]"
-          >Updated continuously — these are real, grabbable tasks.</span
-        >
+      <div class="flex items-center justify-between gap-3 px-[22px] py-4">
+        <span class="text-muted-foreground text-[13px]">Updated continuously — these are real, grabbable tasks.</span>
         <a
           href={LINKS.githubLabel}
           target="_blank"
           rel="noopener noreferrer"
-          class="gi-btn gi-btn-outline"
+          class="inline-flex items-center justify-center gap-2 rounded-lg font-medium text-sm h-[38px] px-4 whitespace-nowrap no-underline cursor-pointer transition-all duration-150 bg-transparent border border-border text-foreground hover:bg-accent"
         >
           View all on GitHub <ExternalLink class="w-3.5 h-3.5" />
         </a>
@@ -404,11 +418,17 @@
 
   <!-- Donate band -->
   <section class="pb-20" id="donate">
-    <div class="gi-donate-band">
+    <div
+      class="rounded-[18px] p-10 flex items-center gap-8 flex-wrap"
+      style="
+        border: 1px solid color-mix(in oklch, {ACCENT}, transparent 55%);
+        background:
+          radial-gradient(120% 140% at 100% 0%, color-mix(in oklch, {ACCENT}, transparent 80%), transparent 60%),
+          color-mix(in oklch, var(--card), transparent 30%);
+      "
+    >
       <div class="flex-1 min-w-[280px]">
-        <h3
-          class="text-[26px] font-bold tracking-tight mb-2"
-        >
+        <h3 class="text-[26px] font-bold tracking-tight mb-2">
           Keep Nocturne free and independent
         </h3>
         <p class="text-muted-foreground m-0 max-w-[52ch]">
@@ -422,7 +442,8 @@
           href={LINKS.donate}
           target="_blank"
           rel="noopener noreferrer"
-          class="gi-btn gi-btn-accent gi-btn-lg"
+          class="inline-flex items-center justify-center gap-2 rounded-lg font-medium text-[15px] h-[46px] px-6 whitespace-nowrap no-underline cursor-pointer transition-all duration-150 text-white hover:brightness-108"
+          style="background: {ACCENT}"
         >
           <HeartHandshake class="w-[17px] h-[17px]" /> Donate to the Foundation
         </a>
@@ -435,179 +456,20 @@
 </div>
 
 <style>
-  /* ── Accent text gradient ─────────────────── */
   .gi-accent-text {
-    background: linear-gradient(
-      118deg,
-      var(--foreground),
-      color-mix(
-        in oklch,
-        oklch(0.6 0.118 184.704),
-        var(--foreground) 35%
-      )
-    );
+    background: linear-gradient(118deg, var(--foreground), color-mix(in oklch, oklch(0.6 0.118 184.704), var(--foreground) 35%));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
 
-  /* ── Eyebrow pill ─────────────────────────── */
-  .gi-eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    white-space: nowrap;
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted-foreground);
-    background: color-mix(in oklch, var(--card), transparent 50%);
-    border: 1px solid var(--border);
-    padding: 6px 12px;
-    border-radius: 9999px;
-    backdrop-filter: blur(6px);
-  }
-
-  .gi-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    display: inline-block;
-  }
-
-  /* ── Buttons ──────────────────────────────── */
-  .gi-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    border-radius: 8px;
-    font: inherit;
-    font-weight: 500;
-    font-size: 14px;
-    height: 38px;
-    padding: 0 16px;
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-    text-decoration: none;
-  }
-
-  .gi-btn-accent {
-    background: oklch(0.6 0.118 184.704);
-    color: oklch(0.99 0 0);
-  }
-  .gi-btn-accent:hover {
-    filter: brightness(1.08);
-  }
-
-  .gi-btn-outline {
-    background: transparent;
-    border-color: var(--border);
-    color: var(--foreground);
-  }
-  .gi-btn-outline:hover {
-    background: var(--accent);
-  }
-
-  .gi-btn-lg {
-    height: 46px;
-    padding: 0 24px;
-    font-size: 15px;
-  }
-
-  /* ── Section eyebrow ──────────────────────── */
-  .gi-section-eyebrow {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: oklch(0.6 0.118 184.704);
-    margin: 0 0 14px;
-  }
-
-  /* ── Stat widgets ─────────────────────────── */
-  .gi-stat-widget {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-  }
-
-  .gi-stat-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted-foreground);
-    margin: 0 0 10px;
-  }
-
-  .gi-stat-value {
-    font-size: 36px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.03em;
-    line-height: 1;
-    color: var(--foreground);
-  }
-
-  /* ── Lane cards (dashboard flat) ──────────── */
-  .gi-lane-card {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 16px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    transition:
-      border-color 0.2s,
-      transform 0.2s;
-    text-decoration: none;
-    color: inherit;
-  }
-
   .gi-lane-card:hover {
-    border-color: color-mix(
-      in oklch,
-      oklch(0.6 0.118 184.704),
-      transparent 55%
-    );
+    border-color: color-mix(in oklch, oklch(0.6 0.118 184.704), transparent 55%);
   }
 
   .gi-lane-highlight {
-    border-color: color-mix(
-      in oklch,
-      oklch(0.6 0.118 184.704),
-      transparent 45%
-    );
-    background: color-mix(
-      in oklch,
-      oklch(0.6 0.118 184.704),
-      var(--card) 80%
-    );
-  }
-
-  .gi-lane-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 11px;
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-  }
-
-  .gi-lane-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 12px;
-    font-size: 14px;
-    font-weight: 600;
+    border-color: color-mix(in oklch, oklch(0.6 0.118 184.704), transparent 45%);
+    background: color-mix(in oklch, oklch(0.6 0.118 184.704), var(--card) 80%);
   }
 
   .gi-lane-link :global(svg) {
@@ -618,107 +480,11 @@
     transform: translateX(3px);
   }
 
-  /* ── Issue feed ───────────────────────────── */
-  .gi-feed-card {
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background: var(--card);
-    overflow: hidden;
-  }
-
-  .gi-feed-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 18px 22px;
-    border-bottom: 1px solid var(--border);
-    background: color-mix(in oklch, var(--card), var(--background) 35%);
-  }
-
-  .gi-tag-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 4px 10px;
-    border-radius: 9999px;
-    background: color-mix(
-      in oklch,
-      oklch(0.6 0.118 184.704),
-      transparent 85%
-    );
-    color: oklch(0.6 0.118 184.704);
-    border: 1px solid
-      color-mix(in oklch, oklch(0.6 0.118 184.704), transparent 70%);
-    margin-left: auto;
-  }
-
-  .gi-issue-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 13px 18px;
-    border-bottom: 1px solid var(--border);
-    transition: background 0.15s;
-    cursor: pointer;
-    text-decoration: none;
-    color: inherit;
-  }
-
-  .gi-issue-row:last-of-type {
-    border-bottom: none;
-  }
-
-  .gi-issue-row:hover {
-    background: color-mix(in oklch, var(--card), transparent 20%);
-  }
-
-  .gi-issue-dot {
-    flex-shrink: 0;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    border: 2px solid oklch(0.6 0.118 184.704);
-    position: relative;
-    margin-top: 3px;
-  }
-
   .gi-issue-dot::after {
     content: "";
     position: absolute;
     inset: 3px;
     border-radius: 50%;
     background: oklch(0.6 0.118 184.704);
-  }
-
-  .gi-label-pill {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    white-space: nowrap;
-    padding: 3px 9px;
-    border-radius: 9999px;
-    border: 1px solid transparent;
-  }
-
-  /* ── Donate band ──────────────────────────── */
-  .gi-donate-band {
-    border: 1px solid
-      color-mix(in oklch, oklch(0.6 0.118 184.704), transparent 55%);
-    border-radius: 18px;
-    background:
-      radial-gradient(
-        120% 140% at 100% 0%,
-        color-mix(in oklch, oklch(0.6 0.118 184.704), transparent 80%),
-        transparent 60%
-      ),
-      color-mix(in oklch, var(--card), transparent 30%);
-    padding: 40px;
-    display: flex;
-    align-items: center;
-    gap: 32px;
-    flex-wrap: wrap;
   }
 </style>
