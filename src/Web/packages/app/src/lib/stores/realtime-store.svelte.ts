@@ -803,6 +803,13 @@ export class RealtimeStore {
       }
     }
     this.websocketClient.destroy();
+
+    // Clear the module-level singleton so the next createRealtimeStore() builds
+    // a fresh store rather than resurrecting this torn-down instance with stale
+    // realtime state (e.g. when re-entering the authenticated layout).
+    if (singletonStore === this) {
+      singletonStore = null;
+    }
   }
 
   /**
