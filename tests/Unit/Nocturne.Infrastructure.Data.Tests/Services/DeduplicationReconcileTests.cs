@@ -304,6 +304,73 @@ public class DeduplicationReconcileTests : IDisposable
     }
 
     [Fact]
+    public async Task ReconcileNewLinksAsync_SkipsUnknownRecordType()
+    {
+        var now = DateTime.UtcNow;
+        await _service.SetWatermarkAsync(now.AddHours(-1), CancellationToken.None);
+
+        // A valid mergeable pair that should still collapse despite a bogus row in the batch.
+        var t = now.AddMinutes(-5);
+        var mylife = await AddCarb(t, "mylife-connector", 50);
+        var glooko = await AddCarb(t.AddSeconds(20), "glooko-connector", 50);
+        AddPrimaryLink(RecordType.CarbIntake, mylife, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, glooko, ToMills(t.AddSeconds(20)), "glooko-connector");
+
+        // A linked_records row whose free-form RecordType is not a member of the RecordType enum.
+        // Enum.Parse on this string would throw and take down the whole reconcile batch loop.
+        _context.LinkedRecords.Add(new LinkedRecordEntity
+        {
+            Id = Guid.CreateVersion7(),
+            TenantId = TestTenantId,
+            CanonicalId = Guid.CreateVersion7(),
+            RecordType = "bogustype",
+            RecordId = Guid.CreateVersion7(),
+            SourceTimestamp = ToMills(t),
+            DataSource = "mylife-connector",
+            IsPrimary = true,
+            SysCreatedAt = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+        await SetAllLinkSysCreatedAt(now);
+
+        var act = async () => await _service.ReconcileNewLinksAsync(5000, 10, CancellationToken.None);
+
+        var result = await act.Should().NotThrowAsync();
+        // The valid pair still merges, and the call returns normally.
+        result.Subject.GroupsMerged.Should().Be(1);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task ReconcileNewLinksAsync_FreshTenant_DefaultWatermark_ReconcilesWithoutThrowing()
+    {
+        // Fresh tenant: no watermark seeded, so GetWatermarkAsync returns DateTime.MinValue.
+        // cutoff = watermark - ReconcileOverlap would underflow (ArgumentOutOfRangeException).
+        (await _service.GetWatermarkAsync(CancellationToken.None)).Should().Be(DateTime.MinValue);
+
+        var now = DateTime.UtcNow;
+        var t = now.AddMinutes(-5);
+        var mylife = await AddCarb(t, "mylife-connector", 50);
+        var glooko = await AddCarb(t.AddSeconds(20), "glooko-connector", 50);
+        AddPrimaryLink(RecordType.CarbIntake, mylife, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, glooko, ToMills(t.AddSeconds(20)), "glooko-connector");
+        await _context.SaveChangesAsync();
+        await SetAllLinkSysCreatedAt(now);
+
+        var act = async () => await _service.ReconcileNewLinksAsync(5000, 10, CancellationToken.None);
+
+        var result = await act.Should().NotThrowAsync();
+        result.Subject.GroupsMerged.Should().Be(1);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(1);
+
+        // The watermark advances past MinValue.
+        var watermark = await _service.GetWatermarkAsync(CancellationToken.None);
+        watermark.Should().BeCloseTo(now, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public async Task Watermark_RoundTrips_DefaultsToMinValue()
     {
         (await _service.GetWatermarkAsync(CancellationToken.None)).Should().Be(DateTime.MinValue);

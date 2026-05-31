@@ -735,7 +735,9 @@ public class DeduplicationService : IDeduplicationService
         // Re-read from a little before the watermark so links whose SysCreatedAt straddled the
         // previous batch's boundary aren't missed. Re-processing is idempotent: once a region is
         // merged, MergeDuplicateGroupsAsync finds nothing more to collapse there.
-        var cutoff = watermark - ReconcileOverlap;
+        // A fresh tenant (deploy-day backfill) has no watermark yet, so it defaults to
+        // DateTime.MinValue — subtracting the overlap would underflow, so skip it and start at MinValue.
+        var cutoff = watermark == DateTime.MinValue ? DateTime.MinValue : watermark - ReconcileOverlap;
 
         var merged = 0;
         var caughtUp = false;
@@ -760,8 +762,18 @@ public class DeduplicationService : IDeduplicationService
             // and merge each type's candidate canonical groups.
             foreach (var group in batch.GroupBy(l => l.RecordType))
             {
-                var type = Enum.Parse<RecordType>(group.Key, ignoreCase: true);
+                // RecordType is a free-form string column whose surface is broader than the enum.
+                // A legacy/typo'd value must not throw and block all further batches for this tenant.
+                if (!Enum.TryParse<RecordType>(group.Key, ignoreCase: true, out var type))
+                {
+                    _logger.LogWarning(
+                        "Skipping linked_records group with unknown RecordType '{RecordType}' during reconcile",
+                        group.Key);
+                    continue;
+                }
+
                 var candidateCanonicalIds = group.Select(l => l.CanonicalId).ToHashSet();
+                // GroupsMerged is the reduction in group count (k canonicals -> 1 == k-1), matching MergeDuplicateGroupsAsync.
                 merged += await MergeDuplicateGroupsAsync(type, candidateCanonicalIds, cancellationToken);
             }
 
