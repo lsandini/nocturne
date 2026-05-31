@@ -612,6 +612,12 @@ public class DeduplicationService : IDeduplicationService
     /// underlying record is soft-deleted. Soft-deleted rows are included via
     /// <c>IgnoreQueryFilters</c>; record types without a <c>DeletedAt</c> column report
     /// <see cref="RecordInfo.IsDeleted"/> as <see langword="false"/>.
+    /// <para>
+    /// The global query filter combines tenant scoping (<c>TenantId == this.TenantId</c>) with
+    /// the soft-delete predicate (<c>DeletedAt == null</c>) and <c>IgnoreQueryFilters</c> drops
+    /// both. To bypass only the soft-delete filter, each query re-applies the tenant predicate
+    /// (<c>e.TenantId == _context.TenantId</c>) explicitly so cross-tenant rows can never leak in.
+    /// </para>
     /// </summary>
     private async Task<Dictionary<Guid, RecordInfo>> LoadRecordInfoAsync(
         RecordType recordType, HashSet<Guid> ids, CancellationToken ct)
@@ -624,56 +630,56 @@ public class DeduplicationService : IDeduplicationService
             case RecordType.SensorGlucose:
             {
                 var records = await _context.SensorGlucose.IgnoreQueryFilters()
-                    .Where(e => ids.Contains(e.Id)).ToListAsync(ct);
+                    .Where(e => e.TenantId == _context.TenantId && ids.Contains(e.Id)).ToListAsync(ct);
                 return records.ToDictionary(e => e.Id,
                     e => new RecordInfo(BuildCriteria(e), e.DeletedAt != null));
             }
             case RecordType.Bolus:
             {
                 var records = await _context.Boluses.IgnoreQueryFilters()
-                    .Where(b => ids.Contains(b.Id)).ToListAsync(ct);
+                    .Where(b => b.TenantId == _context.TenantId && ids.Contains(b.Id)).ToListAsync(ct);
                 return records.ToDictionary(b => b.Id,
                     b => new RecordInfo(BuildCriteria(b), b.DeletedAt != null));
             }
             case RecordType.CarbIntake:
             {
                 var records = await _context.CarbIntakes.IgnoreQueryFilters()
-                    .Where(c => ids.Contains(c.Id)).ToListAsync(ct);
+                    .Where(c => c.TenantId == _context.TenantId && ids.Contains(c.Id)).ToListAsync(ct);
                 return records.ToDictionary(c => c.Id,
                     c => new RecordInfo(BuildCriteria(c), c.DeletedAt != null));
             }
             case RecordType.BGCheck:
             {
                 var records = await _context.BGChecks.IgnoreQueryFilters()
-                    .Where(bg => ids.Contains(bg.Id)).ToListAsync(ct);
+                    .Where(bg => bg.TenantId == _context.TenantId && ids.Contains(bg.Id)).ToListAsync(ct);
                 return records.ToDictionary(bg => bg.Id,
                     bg => new RecordInfo(BuildCriteria(bg), bg.DeletedAt != null));
             }
             case RecordType.DeviceEvent:
             {
                 var records = await _context.DeviceEvents.IgnoreQueryFilters()
-                    .Where(d => ids.Contains(d.Id)).ToListAsync(ct);
+                    .Where(d => d.TenantId == _context.TenantId && ids.Contains(d.Id)).ToListAsync(ct);
                 return records.ToDictionary(d => d.Id,
                     d => new RecordInfo(BuildCriteria(d), d.DeletedAt != null));
             }
             case RecordType.Note:
             {
                 var records = await _context.Notes.IgnoreQueryFilters()
-                    .Where(n => ids.Contains(n.Id)).ToListAsync(ct);
+                    .Where(n => n.TenantId == _context.TenantId && ids.Contains(n.Id)).ToListAsync(ct);
                 return records.ToDictionary(n => n.Id,
                     n => new RecordInfo(BuildNoteCriteria(), n.DeletedAt != null));
             }
             case RecordType.BolusCalculation:
             {
                 var records = await _context.BolusCalculations.IgnoreQueryFilters()
-                    .Where(bc => ids.Contains(bc.Id)).ToListAsync(ct);
+                    .Where(bc => bc.TenantId == _context.TenantId && ids.Contains(bc.Id)).ToListAsync(ct);
                 return records.ToDictionary(bc => bc.Id,
                     bc => new RecordInfo(BuildCriteria(bc), bc.DeletedAt != null));
             }
             case RecordType.TempBasal:
             {
                 var records = await _context.TempBasals.IgnoreQueryFilters()
-                    .Where(t => ids.Contains(t.Id)).ToListAsync(ct);
+                    .Where(t => t.TenantId == _context.TenantId && ids.Contains(t.Id)).ToListAsync(ct);
                 return records.ToDictionary(t => t.Id,
                     t => new RecordInfo(BuildCriteria(t), t.DeletedAt != null));
             }
@@ -681,7 +687,7 @@ public class DeduplicationService : IDeduplicationService
             {
                 // StateSpanEntity has no DeletedAt column, so IsDeleted is always false.
                 var records = await _context.StateSpans.IgnoreQueryFilters()
-                    .Where(s => ids.Contains(s.Id)).ToListAsync(ct);
+                    .Where(s => s.TenantId == _context.TenantId && ids.Contains(s.Id)).ToListAsync(ct);
                 return records.ToDictionary(s => s.Id,
                     s => new RecordInfo(BuildCriteria(s), false));
             }

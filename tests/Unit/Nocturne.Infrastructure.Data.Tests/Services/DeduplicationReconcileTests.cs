@@ -75,4 +75,33 @@ public class DeduplicationReconcileTests : IDisposable
         info[live].IsDeleted.Should().BeFalse();
         info[gone].IsDeleted.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task LoadRecordInfoAsync_CarbIntake_ExcludesOtherTenants()
+    {
+        var mine = Guid.CreateVersion7();
+        var theirs = Guid.CreateVersion7();
+        var otherTenant = Guid.Parse("00000000-0000-0000-0000-000000000002");
+
+        // The cross-tenant row references a real tenant, so seed it (bypassing the
+        // query filter) to satisfy the FK constraint without it leaking into _context.
+        using (var seedContext = new NocturneDbContext(_contextOptions))
+        {
+            seedContext.TenantId = otherTenant;
+            seedContext.Tenants.Add(new TenantEntity { Id = otherTenant, Slug = "other" });
+            seedContext.SaveChanges();
+        }
+
+        // Seed a record for the current tenant and one belonging to a different tenant.
+        // IgnoreQueryFilters bypasses the soft-delete filter, so tenant scoping must be
+        // re-applied explicitly; otherwise the cross-tenant row leaks into the result.
+        _context.CarbIntakes.Add(new CarbIntakeEntity { Id = mine, TenantId = TestTenantId, Carbs = 10, Timestamp = DateTime.UtcNow });
+        _context.CarbIntakes.Add(new CarbIntakeEntity { Id = theirs, TenantId = otherTenant, Carbs = 99, Timestamp = DateTime.UtcNow });
+        await _context.SaveChangesAsync();
+
+        var info = await _service.LoadRecordInfoForTestAsync(RecordType.CarbIntake, new HashSet<Guid> { mine, theirs });
+
+        info.Should().ContainKey(mine);
+        info.Should().NotContainKey(theirs);
+    }
 }
