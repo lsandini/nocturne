@@ -554,6 +554,162 @@ public class DeduplicationService : IDeduplicationService
             DuplicateGroups: duplicateGroups);
     }
 
+    /// <summary>
+    /// Collapses duplicate canonical groups for a record type within the current tenant.
+    /// Two groups merge when their primary records fall within <see cref="MatchingWindowMillis"/>
+    /// of each other and their <see cref="MatchCriteria"/> match; merging is transitive
+    /// (union-find) and source-agnostic, mirroring insert-time <see cref="DeduplicateBatchAsync"/>
+    /// semantics. For each merged super-group the surviving primary is the earliest-timestamp
+    /// non-deleted record (falling back to earliest-overall when every record is soft-deleted);
+    /// all linked rows are re-pointed to the survivor's canonical id and <c>IsPrimary</c> is set
+    /// on exactly the survivor.
+    /// </summary>
+    /// <param name="recordType">The record type whose canonical groups are reconciled.</param>
+    /// <param name="candidateCanonicalIds">
+    /// When non-null, only canonical groups in this set plus their event-window neighbours are
+    /// considered; when null, all primaries of the type are considered.
+    /// </param>
+    /// <param name="ct">A token to cancel the operation.</param>
+    /// <returns>The number of duplicate groups collapsed (merges that reduced group count).</returns>
+    internal async Task<int> MergeDuplicateGroupsAsync(
+        RecordType recordType,
+        IReadOnlySet<Guid>? candidateCanonicalIds,
+        CancellationToken ct)
+    {
+        var recordTypeStr = recordType.ToString().ToLowerInvariant();
+
+        // 1. Load primary linked_records for this type, ordered by source timestamp.
+        var primaries = await _context.LinkedRecords
+            .Where(lr => lr.RecordType == recordTypeStr && lr.IsPrimary)
+            .OrderBy(lr => lr.SourceTimestamp)
+            .ToListAsync(ct);
+
+        // When restricted to candidates, keep only candidate groups plus their event-window
+        // neighbours (other primaries within MatchingWindowMillis), so merges that involve a
+        // candidate are still discovered.
+        if (candidateCanonicalIds != null)
+        {
+            var relevant = new HashSet<Guid>();
+            foreach (var p in primaries)
+            {
+                if (!candidateCanonicalIds.Contains(p.CanonicalId))
+                    continue;
+                relevant.Add(p.CanonicalId);
+                foreach (var other in primaries)
+                {
+                    if (Math.Abs(other.SourceTimestamp - p.SourceTimestamp) <= MatchingWindowMillis)
+                        relevant.Add(other.CanonicalId);
+                }
+            }
+            primaries = primaries.Where(p => relevant.Contains(p.CanonicalId)).ToList();
+        }
+
+        if (primaries.Count < 2)
+            return 0;
+
+        // 2. Load criteria + deleted status for the primary record ids.
+        var primaryIds = primaries.Select(p => p.RecordId).ToHashSet();
+        var info = await LoadRecordInfoAsync(recordType, primaryIds, ct);
+
+        // 3. Sorted sliding-window union-find over primaries by canonical id.
+        var parent = new Dictionary<Guid, Guid>();
+        Guid Find(Guid x)
+        {
+            if (!parent.TryGetValue(x, out var p) || p.Equals(x))
+            {
+                parent[x] = x;
+                return x;
+            }
+            var root = Find(p);
+            parent[x] = root;
+            return root;
+        }
+        void Union(Guid a, Guid b)
+        {
+            var ra = Find(a);
+            var rb = Find(b);
+            if (!ra.Equals(rb))
+                parent[ra] = rb;
+        }
+
+        foreach (var p in primaries)
+            parent[p.CanonicalId] = p.CanonicalId;
+
+        for (int i = 0; i < primaries.Count; i++)
+        {
+            if (!info.TryGetValue(primaries[i].RecordId, out var infoI))
+                continue;
+            for (int j = i + 1; j < primaries.Count
+                 && primaries[j].SourceTimestamp - primaries[i].SourceTimestamp <= MatchingWindowMillis; j++)
+            {
+                if (!info.TryGetValue(primaries[j].RecordId, out var infoJ))
+                    continue;
+                if (CriteriaMatch(recordType, infoI.Criteria, infoJ.Criteria))
+                    Union(primaries[i].CanonicalId, primaries[j].CanonicalId);
+            }
+        }
+
+        // 4. Group canonical ids by union root; only roots spanning >1 distinct canonical merge.
+        var groupsByRoot = new Dictionary<Guid, HashSet<Guid>>();
+        foreach (var p in primaries)
+        {
+            var root = Find(p.CanonicalId);
+            if (!groupsByRoot.TryGetValue(root, out var set))
+            {
+                set = new HashSet<Guid>();
+                groupsByRoot[root] = set;
+            }
+            set.Add(p.CanonicalId);
+        }
+
+        var merged = 0;
+        foreach (var canonicals in groupsByRoot.Values)
+        {
+            if (canonicals.Count < 2)
+                continue;
+
+            // Load every linked row in the merged canonicals (soft-deleted records included).
+            var rows = await _context.LinkedRecords
+                .Where(lr => lr.RecordType == recordTypeStr && canonicals.Contains(lr.CanonicalId))
+                .ToListAsync(ct);
+            if (rows.Count == 0)
+                continue;
+
+            // Load deleted status for all record ids in the super-group.
+            var rowIds = rows.Select(r => r.RecordId).ToHashSet();
+            var rowInfo = await LoadRecordInfoAsync(recordType, rowIds, ct);
+
+            // Survivor = earliest-timestamp non-deleted record; fall back to earliest-overall
+            // only if every record in the group is soft-deleted.
+            bool IsDeleted(LinkedRecordEntity r) =>
+                rowInfo.TryGetValue(r.RecordId, out var ri) && ri.IsDeleted;
+
+            var survivor = rows
+                .Where(r => !IsDeleted(r))
+                .OrderBy(r => r.SourceTimestamp)
+                .FirstOrDefault()
+                ?? rows.OrderBy(r => r.SourceTimestamp).First();
+
+            // Re-point every row to the survivor's canonical id and fix the IsPrimary invariant.
+            foreach (var r in rows)
+            {
+                r.CanonicalId = survivor.CanonicalId;
+                r.IsPrimary = ReferenceEquals(r, survivor);
+            }
+
+            // Collapsing N canonicals into 1 removes (N-1) groups.
+            merged += canonicals.Count - 1;
+        }
+
+        if (merged > 0)
+        {
+            await _context.SaveChangesAsync(ct);
+            _context.ChangeTracker.Clear();
+        }
+
+        return merged;
+    }
+
     private async Task<bool> RecordExistsAsync(string recordType, Guid recordId, CancellationToken ct)
     {
         return recordType switch

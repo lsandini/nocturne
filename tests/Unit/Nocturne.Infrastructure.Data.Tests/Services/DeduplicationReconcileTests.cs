@@ -1,8 +1,10 @@
 using System.Data.Common;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nocturne.Core.Contracts.Infrastructure;
+using Nocturne.Infrastructure.Data.Entities;
 using Nocturne.Infrastructure.Data.Entities.V4;
 using Nocturne.Infrastructure.Data.Services;
 
@@ -104,4 +106,121 @@ public class DeduplicationReconcileTests : IDisposable
         info.Should().ContainKey(mine);
         info.Should().NotContainKey(theirs);
     }
+
+    [Fact]
+    public async Task MergeDuplicateGroupsAsync_MergesTwoPrimaryGroupsForSameMeal()
+    {
+        var t = DateTime.UtcNow;
+        var mylife = await AddCarb(t, "mylife-connector", 50);
+        var glooko = await AddCarb(t.AddSeconds(20), "glooko-connector", 50);
+        AddPrimaryLink(RecordType.CarbIntake, mylife, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, glooko, ToMills(t.AddSeconds(20)), "glooko-connector");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(1);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(1);
+        links.Count(l => l.IsPrimary).Should().Be(1);
+        links.Single(l => l.IsPrimary).RecordId.Should().Be(mylife); // earliest, non-deleted
+    }
+
+    [Fact]
+    public async Task MergeDuplicateGroupsAsync_DoesNotMergeDifferentValues()
+    {
+        var t = DateTime.UtcNow;
+        var mylife = await AddCarb(t, "mylife-connector", 50);
+        var glooko = await AddCarb(t.AddSeconds(20), "glooko-connector", 80);
+        AddPrimaryLink(RecordType.CarbIntake, mylife, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, glooko, ToMills(t.AddSeconds(20)), "glooko-connector");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(0);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task MergeDuplicateGroupsAsync_DoesNotMergeOutsideWindow()
+    {
+        var t = DateTime.UtcNow;
+        var mylife = await AddCarb(t, "mylife-connector", 50);
+        var glooko = await AddCarb(t.AddSeconds(90), "glooko-connector", 50);
+        AddPrimaryLink(RecordType.CarbIntake, mylife, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, glooko, ToMills(t.AddSeconds(90)), "glooko-connector");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(0);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task MergeDuplicateGroupsAsync_PrefersNonDeletedAsPrimary()
+    {
+        var t = DateTime.UtcNow;
+        // Earliest record is soft-deleted; the later non-deleted record must become the surviving primary.
+        var deleted = await AddCarb(t, "mylife-connector", 50, deletedAt: DateTime.UtcNow);
+        var live = await AddCarb(t.AddSeconds(20), "glooko-connector", 50);
+        AddPrimaryLink(RecordType.CarbIntake, deleted, ToMills(t), "mylife-connector");
+        AddPrimaryLink(RecordType.CarbIntake, live, ToMills(t.AddSeconds(20)), "glooko-connector");
+        await _context.SaveChangesAsync();
+
+        var merged = await _service.MergeDuplicateGroupsAsync(RecordType.CarbIntake, null, CancellationToken.None);
+
+        merged.Should().Be(1);
+        var links = await _context.LinkedRecords.IgnoreQueryFilters().Where(l => l.RecordType == "carbintake").ToListAsync();
+        links.Select(l => l.CanonicalId).Distinct().Should().HaveCount(1);
+        links.Count(l => l.IsPrimary).Should().Be(1);
+        links.Single(l => l.IsPrimary).RecordId.Should().Be(live); // earliest non-deleted
+    }
+
+    /// <summary>
+    /// Inserts a <see cref="CarbIntakeEntity"/> for the test tenant and returns its id.
+    /// </summary>
+    private async Task<Guid> AddCarb(DateTime timestamp, string dataSource, double carbs, DateTime? deletedAt = null)
+    {
+        var id = Guid.CreateVersion7();
+        _context.CarbIntakes.Add(new CarbIntakeEntity
+        {
+            Id = id,
+            TenantId = TestTenantId,
+            Carbs = carbs,
+            Timestamp = timestamp,
+            DataSource = dataSource,
+            DeletedAt = deletedAt
+        });
+        await _context.SaveChangesAsync();
+        return id;
+    }
+
+    /// <summary>
+    /// Adds a primary <see cref="LinkedRecordEntity"/> with a fresh canonical id for the test tenant.
+    /// </summary>
+    private void AddPrimaryLink(RecordType recordType, Guid recordId, long mills, string source)
+    {
+        _context.LinkedRecords.Add(new LinkedRecordEntity
+        {
+            Id = Guid.CreateVersion7(),
+            TenantId = TestTenantId,
+            CanonicalId = Guid.CreateVersion7(),
+            RecordType = recordType.ToString().ToLowerInvariant(),
+            RecordId = recordId,
+            SourceTimestamp = mills,
+            DataSource = source,
+            IsPrimary = true,
+            SysCreatedAt = DateTime.UtcNow
+        });
+    }
+
+    /// <summary>
+    /// Converts a UTC <see cref="DateTime"/> to Unix milliseconds, matching the link source timestamp.
+    /// </summary>
+    private static long ToMills(DateTime d) =>
+        new DateTimeOffset(d, TimeSpan.Zero).ToUnixTimeMilliseconds();
 }
