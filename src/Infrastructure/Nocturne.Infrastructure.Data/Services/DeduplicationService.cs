@@ -1599,4 +1599,43 @@ public class DeduplicationService : IDeduplicationService
             .OrderByDescending(GetBasalTypePriority)
             .First();
     }
+
+    /// <summary>
+    /// Returns the current tenant's reconciliation watermark — the ingestion time of the last
+    /// reconciled link — or <see cref="DateTime.MinValue"/> if reconciliation has never run.
+    /// </summary>
+    internal async Task<DateTime> GetWatermarkAsync(CancellationToken ct)
+    {
+        var state = await _context.DedupReconcileState
+            .Where(s => s.TenantId == _context.TenantId)
+            .FirstOrDefaultAsync(ct);
+
+        return state?.LastReconciledLinkCreatedAt ?? DateTime.MinValue;
+    }
+
+    /// <summary>
+    /// Upserts the current tenant's reconciliation watermark, inserting a row if none exists
+    /// or updating the existing one otherwise.
+    /// </summary>
+    internal async Task SetWatermarkAsync(DateTime value, CancellationToken ct)
+    {
+        var state = await _context.DedupReconcileState
+            .Where(s => s.TenantId == _context.TenantId)
+            .FirstOrDefaultAsync(ct);
+
+        if (state is null)
+        {
+            _context.DedupReconcileState.Add(new DedupReconcileStateEntity
+            {
+                TenantId = _context.TenantId,
+                LastReconciledLinkCreatedAt = value
+            });
+        }
+        else
+        {
+            state.LastReconciledLinkCreatedAt = value;
+        }
+
+        await _context.SaveChangesAsync(ct);
+    }
 }

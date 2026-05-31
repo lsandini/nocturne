@@ -180,6 +180,34 @@ public class DeduplicationReconcileTests : IDisposable
         links.Single(l => l.IsPrimary).RecordId.Should().Be(live); // earliest non-deleted
     }
 
+    [Fact]
+    public async Task Watermark_RoundTrips_DefaultsToMinValue()
+    {
+        (await _service.GetWatermarkAsync(CancellationToken.None)).Should().Be(DateTime.MinValue);
+
+        var t = new DateTime(2026, 5, 30, 12, 0, 0, DateTimeKind.Utc);
+        await _service.SetWatermarkAsync(t, CancellationToken.None);
+
+        (await _service.GetWatermarkAsync(CancellationToken.None)).Should().Be(t);
+    }
+
+    [Fact]
+    public async Task Watermark_SetTwice_Updates()
+    {
+        var t1 = new DateTime(2026, 5, 30, 12, 0, 0, DateTimeKind.Utc);
+        var t2 = new DateTime(2026, 5, 31, 9, 30, 0, DateTimeKind.Utc);
+
+        await _service.SetWatermarkAsync(t1, CancellationToken.None);
+        await _service.SetWatermarkAsync(t2, CancellationToken.None);
+
+        (await _service.GetWatermarkAsync(CancellationToken.None)).Should().Be(t2);
+
+        // Upsert must update the single row, not create a duplicate.
+        var rows = await _context.DedupReconcileState.IgnoreQueryFilters()
+            .Where(s => s.TenantId == TestTenantId).CountAsync();
+        rows.Should().Be(1);
+    }
+
     /// <summary>
     /// Inserts a <see cref="CarbIntakeEntity"/> for the test tenant and returns its id.
     /// </summary>
