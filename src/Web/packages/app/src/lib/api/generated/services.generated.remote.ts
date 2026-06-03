@@ -5,8 +5,8 @@
 import { getRequestEvent, query, command } from '$app/server';
 import { error, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
-import { SyncRequestSchema } from '$lib/api/generated/schemas';
-import { type SyncRequest } from '$api';
+import { SyncRequestSchema, ResetCursorRequestSchema } from '$lib/api/generated/schemas';
+import { type SyncRequest, type ResetCursorRequest } from '$api';
 
 /** Get a complete overview of services, data sources, and available integrations. */
 export const getServicesOverview = query(async () => {
@@ -287,6 +287,27 @@ export const triggerConnectorSync = command(z.object({ id: z.string(), request: 
     const message = flat ?? body?.message ?? body?.title ?? body?.detail ?? e?.message ?? e?.title ?? e?.detail;
     if (status === 400 || status === 409) throw error(status, message ?? 'Request rejected');
     throw error(500, message ?? 'Failed to trigger connector sync');
+  }
+});
+
+/** Reset a connector's sync cursor for the current tenant and re-pull historical data. */
+export const resetConnectorCursor = command(z.object({ id: z.string(), request: ResetCursorRequestSchema }), async ({ id, request }) => {
+  const apiClient = getRequestEvent().locals.apiClient;
+  try {
+    const result = await apiClient.services.resetConnectorCursor(id, request as ResetCursorRequest);
+    return result;
+  } catch (err) {
+    const status = (err as any)?.status;
+    if (status === 401) { throw error(401, 'Unauthorized'); }
+    if (status === 403) throw error(403, (err as any)?.message ?? (err as any)?.detail ?? 'Forbidden');
+    console.error('Error in services.resetConnectorCursor:', err);
+    const e = err as any;
+    const body = e?.body ?? e?.response;
+    const errors = body?.errors ?? e?.errors;
+    const flat = errors ? Object.entries(errors).map(([k, v]: [string, any]) => Array.isArray(v) ? v.join(', ') : v).join('; ') : undefined;
+    const message = flat ?? body?.message ?? body?.title ?? body?.detail ?? e?.message ?? e?.title ?? e?.detail;
+    if (status === 400 || status === 409) throw error(status, message ?? 'Request rejected');
+    throw error(500, message ?? 'Failed to reset connector cursor');
   }
 });
 

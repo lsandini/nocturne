@@ -10576,6 +10576,59 @@ export class ServicesClient {
     }
 
     /**
+     * Reset a connector's sync cursor for the current tenant and re-pull historical data.
+     * @param id Connector ID (e.g., "nightscout", "dexcom").
+     * @param request Optional lower bound and data-type filter. Omit from to re-pull all available history; omit dataTypes to reset every supported type.
+     * @return Sync result with success status and details.
+     */
+    resetConnectorCursor(id: string, request: ResetCursorRequest, signal?: AbortSignal): Promise<SyncResult> {
+        let url_ = this.baseUrl + "/api/v4/services/connectors/{id}/reset-cursor";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processResetConnectorCursor(_response);
+        });
+    }
+
+    protected processResetConnectorCursor(response: Response): Promise<SyncResult> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SyncResult;
+            return result200;
+            });
+        } else if (status === 400) {
+            return response.text().then((_responseText) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result400);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<SyncResult>(null as any);
+    }
+
+    /**
      * Get sync status for a specific connector, including latest timestamps and connector state.
     Used by connectors on startup to determine where to resume syncing from.
      * @param id The connector ID (e.g., "dexcom", "libre", "glooko")
@@ -29991,6 +30044,16 @@ export interface SyncRequest {
     from?: Date | undefined;
     to?: Date | undefined;
     dataTypes?: SyncDataType[];
+}
+
+/** Request body for resetting a connector's sync cursor and re-pulling history. */
+export interface ResetCursorRequest {
+    /** Optional lower bound for the re-pull. When null, no lower bound is applied and all
+available history is re-ingested. */
+    from?: Date | undefined;
+    /** Optional set of data types to reset. When null or empty, every data type the connector
+supports is re-pulled. */
+    dataTypes?: SyncDataType[] | undefined;
 }
 
 /** Response model for connector sync status */

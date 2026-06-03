@@ -9881,6 +9881,64 @@
         "x-remote-type": "command"
       }
     },
+    "/api/v4/services/connectors/{id}/reset-cursor": {
+      "post": {
+        "tags": [
+          "Services"
+        ],
+        "summary": "Reset a connector's sync cursor for the current tenant and re-pull historical data.",
+        "description": "Nocturne does not persist a sync cursor — each data type resumes from the latest record\nalready stored. This endpoint forces a fresh ingest of history by running an explicit-range\nsync (an upper bound of \"now\" bypasses the per-type catch-up cursors), so the effect is a\ncursor reset. Re-ingested records are deduplicated on their idempotency keys (see the\n\"Syncing\" guide), so it is safe to run after fixing a connector bug to push corrected data\nto a tenant.",
+        "operationId": "Services_ResetConnectorCursor",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Connector ID (e.g., \"nightscout\", \"dexcom\").",
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "description": "Optional lower bound and data-type filter. Omit from to re-pull all available history; omit dataTypes to reset every supported type.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetCursorRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "Sync result with success status and details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command"
+      }
+    },
     "/api/v4/services/connectors/{id}/sync-status": {
       "get": {
         "tags": [
@@ -34670,6 +34728,27 @@
           },
           "dataTypes": {
             "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncDataType"
+            }
+          }
+        }
+      },
+      "ResetCursorRequest": {
+        "type": "object",
+        "description": "Request body for resetting a connector's sync cursor and re-pulling history.",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Optional lower bound for the re-pull. When null, no lower bound is applied and all\navailable history is re-ingested.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dataTypes": {
+            "type": "array",
+            "description": "Optional set of data types to reset. When null or empty, every data type the connector\nsupports is re-pulled.",
+            "nullable": true,
             "items": {
               "$ref": "#/components/schemas/SyncDataType"
             }
