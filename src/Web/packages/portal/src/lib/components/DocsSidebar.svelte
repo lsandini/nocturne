@@ -1,6 +1,6 @@
 <script lang="ts">
     import { page } from "$app/state";
-    import { Rocket, Download, Settings, Shield, Bell, Code2, ChevronRight, ChevronDown } from "@lucide/svelte";
+    import { Rocket, Download, Settings, Shield, Bell, Code2, KeyRound, ChevronRight, ChevronDown } from "@lucide/svelte";
 
     const navSections = [
         {
@@ -24,8 +24,10 @@
             title: "Authentication",
             icon: Shield,
             items: [
+                { href: "/docs/authentication", label: "Overview" },
                 { href: "/docs/authentication/google", label: "Sign in with Google" },
                 { href: "/docs/authentication/github", label: "Sign in with GitHub" },
+                { href: "/docs/authentication/oidc", label: "Generic OIDC" },
             ],
         },
         {
@@ -40,6 +42,14 @@
             icon: Settings,
             items: [
                 { href: "/docs/configuration", label: "Configuration Guide" },
+            ],
+        },
+        {
+            title: "Connecting Apps",
+            icon: KeyRound,
+            items: [
+                { href: "/docs/connecting-apps", label: "App authorization (PKCE)" },
+                { href: "/docs/connecting-apps/device-flow", label: "Mobile & device flow" },
             ],
         },
         {

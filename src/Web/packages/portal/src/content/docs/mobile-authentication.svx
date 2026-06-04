@@ -11,7 +11,7 @@ title: Mobile App Authentication
 This guide covers connecting mobile apps and headless devices to Nocturne using the
 OAuth 2.0 Device Authorization Grant ([RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628)).
 For web apps or desktop apps that can open a browser, see the
-[Authorization Code + PKCE guide](/docs/authentication).
+[Authorization Code + PKCE guide](/docs/connecting-apps).
 
 Nocturne uses the Device Authorization flow for apps that either can't easily open a
 redirect-based browser flow or run on devices with limited input. The user authorizes

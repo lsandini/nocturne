@@ -1,12 +1,12 @@
 ---
-title: Authenticating with Nocturne
+title: Connecting your app
 ---
 
 <script>
   import Callout from '@nocturne/cms/components/Callout.svelte';
 </script>
 
-# Authenticating with Nocturne
+# Connecting your app to Nocturne
 
 This guide walks you through connecting your app to a Nocturne instance using OAuth 2.0.
 By the end, you'll have a working integration that can read glucose entries on behalf of a user.
@@ -14,7 +14,7 @@ By the end, you'll have a working integration that can read glucose entries on b
 Nocturne uses **OAuth 2.0 Authorization Code with PKCE** (Proof Key for Code Exchange).
 Every client is a public client — there are no client secrets. PKCE replaces the secret,
 which makes this flow safe for desktop apps and SPAs. For mobile apps or devices
-with limited input, see the [Device Authorization flow guide](/docs/mobile-authentication).
+with limited input, see the [Device Authorization flow guide](/docs/connecting-apps/device-flow).
 
 ## 1. Register your app
 
