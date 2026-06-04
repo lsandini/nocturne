@@ -31,6 +31,7 @@ import {
   CompressionLowClient,
   ConfigurationClient,
   ConnectedAppsClient,
+  ConnectorAdminClient,
   ConnectorFoodEntriesClient,
   ConnectorStatusClient,
   CorrelationClient,
@@ -70,6 +71,7 @@ import {
   PasskeyClient,
   PatientRecordClient,
   PlatformClient,
+  PlatformAccessClient,
   PlatformSettingsClient,
   PredictionClient,
   ProcessingClient,
@@ -134,6 +136,7 @@ export class ApiClient {
   public readonly compressionLow: CompressionLowClient;
   public readonly configuration: ConfigurationClient;
   public readonly connectedApps: ConnectedAppsClient;
+  public readonly connectorAdmin: ConnectorAdminClient;
   public readonly connectorFoodEntries: ConnectorFoodEntriesClient;
   public readonly connectorStatus: ConnectorStatusClient;
   public readonly correlation: CorrelationClient;
@@ -173,6 +176,7 @@ export class ApiClient {
   public readonly passkey: PasskeyClient;
   public readonly patientRecord: PatientRecordClient;
   public readonly platform: PlatformClient;
+  public readonly platformAccess: PlatformAccessClient;
   public readonly platformSettings: PlatformSettingsClient;
   public readonly predictions: PredictionClient;
   public readonly processing: ProcessingClient;
@@ -237,6 +241,7 @@ export class ApiClient {
     this.compressionLow = new CompressionLowClient(apiBaseUrl, http);
     this.configuration = new ConfigurationClient(apiBaseUrl, http);
     this.connectedApps = new ConnectedAppsClient(apiBaseUrl, http);
+    this.connectorAdmin = new ConnectorAdminClient(apiBaseUrl, http);
     this.connectorFoodEntries = new ConnectorFoodEntriesClient(apiBaseUrl, http);
     this.connectorStatus = new ConnectorStatusClient(apiBaseUrl, http);
     this.correlation = new CorrelationClient(apiBaseUrl, http);
@@ -276,6 +281,7 @@ export class ApiClient {
     this.passkey = new PasskeyClient(apiBaseUrl, http);
     this.patientRecord = new PatientRecordClient(apiBaseUrl, http);
     this.platform = new PlatformClient(apiBaseUrl, http);
+    this.platformAccess = new PlatformAccessClient(apiBaseUrl, http);
     this.platformSettings = new PlatformSettingsClient(apiBaseUrl, http);
     this.predictions = new PredictionClient(apiBaseUrl, http);
     this.processing = new ProcessingClient(apiBaseUrl, http);

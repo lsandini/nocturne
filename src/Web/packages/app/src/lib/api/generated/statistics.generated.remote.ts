@@ -6,7 +6,7 @@ import { getRequestEvent, query } from '$app/server';
 import { error, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { TimeInRangeRequestSchema, SensorGlucoseSchema } from '$lib/api/generated/schemas';
-import { type TimeInRangeRequest, type SensorGlucose } from '$api';
+import { DiabetesPopulation, type TimeInRangeRequest, type SensorGlucose } from '$api';
 
 /** Calculate time in range metrics */
 export const calculateTimeInRange = query(TimeInRangeRequestSchema, async (request) => {
@@ -45,6 +45,29 @@ export const calculateAveragedStats = query(z.array(SensorGlucoseSchema), async 
     const message = flat ?? body?.message ?? body?.title ?? body?.detail ?? e?.message ?? e?.title ?? e?.detail;
     if (status === 400 || status === 409) throw error(status, message ?? 'Request rejected');
     throw error(500, message ?? 'Failed to calculate averaged stats');
+  }
+});
+
+/** Extended glucose analytics for a date range, computed server-side. Fetches glucose,
+manual boluses, and carb intakes for the window from the database and runs
+AnalyzeGlucoseDataExtended plus
+CalculateAveragedStats. */
+export const getRangeAnalytics = query(z.object({ startDate: z.coerce.date().optional(), endDate: z.coerce.date().optional(), population: z.enum(DiabetesPopulation).optional() }).optional(), async (params) => {
+  const apiClient = getRequestEvent().locals.apiClient;
+  try {
+    return await apiClient.statistics.getRangeAnalytics(params?.startDate, params?.endDate, params?.population);
+  } catch (err) {
+    const status = (err as any)?.status;
+    if (status === 401) { const { url } = getRequestEvent(); throw redirect(302, `/auth/login?returnUrl=${encodeURIComponent(url.pathname + url.search)}`); }
+    if (status === 403) throw error(403, (err as any)?.message ?? (err as any)?.detail ?? 'Forbidden');
+    console.error('Error in statistics.getRangeAnalytics:', err);
+    const e = err as any;
+    const body = e?.body ?? e?.response;
+    const errors = body?.errors ?? e?.errors;
+    const flat = errors ? Object.entries(errors).map(([k, v]: [string, any]) => Array.isArray(v) ? v.join(', ') : v).join('; ') : undefined;
+    const message = flat ?? body?.message ?? body?.title ?? body?.detail ?? e?.message ?? e?.title ?? e?.detail;
+    if (status === 400 || status === 409) throw error(status, message ?? 'Request rejected');
+    throw error(500, message ?? 'Failed to get range analytics');
   }
 });
 

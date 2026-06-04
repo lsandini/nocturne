@@ -24,6 +24,7 @@ export * from './glucoseProcessingSettings.generated.remote';
 export * from './profiles.generated.remote';
 export * from './userPreferences.generated.remote';
 export { approve, deny } from './accessRequests.generated.remote';
+export * from './connectorAdmins.generated.remote';
 export { upsert } from './platformSettings.generated.remote';
 export { addMember, removeMember, listInvites, provision, getMemberCredentials, attachOidcIdentity, removePasskeyCredential, removeOidcIdentity } from './tenants.generated.remote';
 export * from './services.generated.remote';

@@ -7976,6 +7976,231 @@
         "x-remote-type": "command"
       }
     },
+    "/api/v4/admin/connectors/{tenantId}": {
+      "get": {
+        "tags": [
+          "Connector Admin"
+        ],
+        "summary": "List the connectors a target tenant has configured, with their last-sync and health state.",
+        "description": "Lets an admin inspect the data gap (last successful sync, health, last error) before deciding\nto reset cursors.",
+        "operationId": "ConnectorAdmin_GetTenantConnectors",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "description": "The target tenant.",
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantConnectorsDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "query"
+      }
+    },
+    "/api/v4/admin/connectors/{tenantId}/reset-cursors": {
+      "post": {
+        "tags": [
+          "Connector Admin"
+        ],
+        "summary": "Enqueue a background reset of the sync cursor for every connector configured on a target\ntenant, forcing a re-pull of history. Use after fixing a connector bug to push corrected data\nto an affected tenant.",
+        "description": "A full re-pull can take minutes per connector — far longer than gateway/proxy/browser request\ntimeouts — so the work runs on a background job that outlives the request. This returns\n202 Accepted with a job id immediately; poll GetResetJobStatus for\nper-connector progress, and CancelResetJob to stop it.",
+        "operationId": "ConnectorAdmin_ResetTenantCursors",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "description": "The target tenant whose connectors should be re-pulled.",
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "description": "Optional lower bound and data-type filter, mirroring the per-tenant reset endpoint.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminResetCursorsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorResetJobInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command"
+      }
+    },
+    "/api/v4/admin/connectors/jobs/{jobId}": {
+      "get": {
+        "tags": [
+          "Connector Admin"
+        ],
+        "summary": "Get the progress of a connector cursor reset job, including per-connector outcomes as they land.",
+        "operationId": "ConnectorAdmin_GetResetJobStatus",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "description": "The job id returned by ResetTenantCursors.",
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorResetJobStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "query"
+      }
+    },
+    "/api/v4/admin/connectors/jobs/{jobId}/cancel": {
+      "post": {
+        "tags": [
+          "Connector Admin"
+        ],
+        "summary": "Request cancellation of a running connector cursor reset job. Connectors already re-pulled\nkeep their committed data; the fan-out simply stops before the next connector.",
+        "operationId": "ConnectorAdmin_CancelResetJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "description": "The job id to cancel.",
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command",
+        "x-remote-invalidates": [
+          "GetResetJobStatus"
+        ]
+      }
+    },
+    "/api/auth/platform-access": {
+      "get": {
+        "tags": [
+          "Platform Access"
+        ],
+        "summary": "Mint a platform-access grant for the given tenant slug and redirect the operator into the\ntenant. Bounces through OIDC login if there is no session yet; 403s if the session is not a\nplatform admin.",
+        "operationId": "PlatformAccess_Access",
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "query",
+            "description": "Target tenant slug.",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v4/admin/platform-settings": {
       "get": {
         "tags": [
@@ -9887,7 +10112,7 @@
           "Services"
         ],
         "summary": "Reset a connector's sync cursor for the current tenant and re-pull historical data.",
-        "description": "Nocturne does not persist a sync cursor — each data type resumes from the latest record\nalready stored. This endpoint forces a fresh ingest of history by running an explicit-range\nsync (an upper bound of \"now\" bypasses the per-type catch-up cursors), so the effect is a\ncursor reset. Re-ingested records are deduplicated on their idempotency keys (see the\n\"Syncing\" guide), so it is safe to run after fixing a connector bug to push corrected data\nto a tenant.",
+        "description": "Nocturne does not persist a sync cursor — each data type resumes from the latest record\nalready stored. This endpoint forces a fresh ingest of history by running an explicit-range\nsync (an upper bound of \"now\" bypasses the per-type catch-up cursors), so the effect is a\ncursor reset. Re-ingested records are deduplicated on their idempotency keys (see the\n\"Syncing\" guide), so it is safe to run after fixing a connector bug to push corrected data\nto a tenant.\n            \nLatency: this runs synchronously. A full-history re-pull with no lower bound\nre-ingests every data type over the connector's entire history (glucose can be tens of\nthousands of records), which is a multi-minute request and may approach or exceed\nreverse-proxy / browser timeouts. Scope it with from and/or dataTypes when\npossible. The cross-tenant equivalent\n(POST /api/v4/admin/connectors/{tenantId}/reset-cursors) runs as a background job to\navoid this.",
         "operationId": "Services_ResetConnectorCursor",
         "parameters": [
           {
@@ -21933,6 +22158,64 @@
         }
       }
     },
+    "/api/v4/Statistics/range-analytics": {
+      "get": {
+        "tags": [
+          "Statistics"
+        ],
+        "summary": "Extended glucose analytics for a date range, computed server-side. Fetches glucose,\nmanual boluses, and carb intakes for the window from the database and runs\nAnalyzeGlucoseDataExtended plus\nCalculateAveragedStats.",
+        "operationId": "Statistics_GetRangeAnalytics",
+        "parameters": [
+          {
+            "name": "startDate",
+            "in": "query",
+            "description": "Start of the window (inclusive, UTC).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "description": "End of the window (exclusive, UTC).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "x-position": 2
+          },
+          {
+            "name": "population",
+            "in": "query",
+            "description": "Diabetes population for clinical target assessment. Defaults to Type 1 adult.",
+            "schema": {
+              "default": 0,
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/DiabetesPopulation"
+                }
+              ]
+            },
+            "x-position": 3
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The extended analytics and time-of-day averaged stats for the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportAnalysisResult"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "query"
+      }
+    },
     "/api/v4/Statistics/gmi/{meanGlucose}": {
       "get": {
         "tags": [
@@ -33413,6 +33696,339 @@
           }
         }
       },
+      "TenantConnectorsDto": {
+        "type": "object",
+        "description": "A tenant and the connectors it has configured.",
+        "additionalProperties": false,
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "description": "The tenant id.",
+            "format": "guid"
+          },
+          "tenantSlug": {
+            "type": "string",
+            "description": "The tenant slug, for display."
+          },
+          "connectors": {
+            "type": "array",
+            "description": "One entry per configured connector.",
+            "items": {
+              "$ref": "#/components/schemas/TenantConnectorSummary"
+            }
+          }
+        }
+      },
+      "TenantConnectorSummary": {
+        "type": "object",
+        "description": "Sync/health summary for a single configured connector.",
+        "additionalProperties": false,
+        "properties": {
+          "connectorName": {
+            "type": "string",
+            "description": "The connector name (e.g. nightscout)."
+          },
+          "isHealthy": {
+            "type": "boolean",
+            "description": "Whether the connector last reported healthy."
+          },
+          "lastSuccessfulSync": {
+            "type": "string",
+            "description": "When the connector last completed a successful sync.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastSyncAttempt": {
+            "type": "string",
+            "description": "When the connector last attempted a sync.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastErrorMessage": {
+            "type": "string",
+            "description": "The most recent error message, if any.",
+            "nullable": true
+          }
+        }
+      },
+      "ConnectorResetJobInfo": {
+        "type": "object",
+        "description": "Summary returned when a reset job is created (202 Accepted).",
+        "additionalProperties": false,
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "The job id, used to poll status.",
+            "format": "guid"
+          },
+          "tenantId": {
+            "type": "string",
+            "description": "The target tenant being reset.",
+            "format": "guid"
+          },
+          "tenantSlug": {
+            "type": "string",
+            "description": "The target tenant's slug, for display."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the job was created.",
+            "format": "date-time"
+          },
+          "state": {
+            "description": "The job's current state.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorResetJobState"
+              }
+            ]
+          },
+          "totalConnectors": {
+            "type": "integer",
+            "description": "How many connectors the job will reset.",
+            "format": "int32"
+          }
+        }
+      },
+      "ConnectorResetJobState": {
+        "type": "string",
+        "description": "Lifecycle state of a connector cursor reset job.",
+        "x-enumNames": [
+          "Pending",
+          "Running",
+          "Completed",
+          "Failed",
+          "Cancelled"
+        ],
+        "enum": [
+          "Pending",
+          "Running",
+          "Completed",
+          "Failed",
+          "Cancelled"
+        ]
+      },
+      "AdminResetCursorsRequest": {
+        "type": "object",
+        "description": "Request body for a cross-tenant cursor reset. Mirrors the per-tenant\nResetCursorRequest shape.",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Optional lower bound for the re-pull. When null, all available history is re-ingested.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dataTypes": {
+            "type": "array",
+            "description": "Optional set of data types to reset. When null or empty, every supported data type is reset.",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/SyncDataType"
+            }
+          }
+        }
+      },
+      "SyncDataType": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Glucose",
+          "ManualBG",
+          "Calibrations",
+          "Boluses",
+          "CarbIntake",
+          "BGChecks",
+          "BolusCalculations",
+          "Notes",
+          "DeviceEvents",
+          "StateSpans",
+          "Profiles",
+          "DeviceStatus",
+          "Activity",
+          "Food"
+        ],
+        "enum": [
+          "Glucose",
+          "ManualBG",
+          "Calibrations",
+          "Boluses",
+          "CarbIntake",
+          "BGChecks",
+          "BolusCalculations",
+          "Notes",
+          "DeviceEvents",
+          "StateSpans",
+          "Profiles",
+          "DeviceStatus",
+          "Activity",
+          "Food"
+        ]
+      },
+      "ConnectorResetJobStatus": {
+        "type": "object",
+        "description": "A pollable snapshot of a reset job's progress.",
+        "additionalProperties": false,
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "The job id.",
+            "format": "guid"
+          },
+          "tenantId": {
+            "type": "string",
+            "description": "The target tenant being reset.",
+            "format": "guid"
+          },
+          "tenantSlug": {
+            "type": "string",
+            "description": "The target tenant's slug, for display."
+          },
+          "state": {
+            "description": "The job's current lifecycle state.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorResetJobState"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the job was created.",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "When the background work started, or null if not yet started.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "When the job reached a terminal state, or null if still running.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "description": "An error message when the whole job failed (not a single connector).",
+            "nullable": true
+          },
+          "totalConnectors": {
+            "type": "integer",
+            "description": "Total connectors the job will reset.",
+            "format": "int32"
+          },
+          "completedConnectors": {
+            "type": "integer",
+            "description": "How many connectors have finished (succeeded or failed).",
+            "format": "int32"
+          },
+          "connectors": {
+            "type": "array",
+            "description": "Per-connector progress, in configured order.",
+            "items": {
+              "$ref": "#/components/schemas/ConnectorResetConnectorProgress"
+            }
+          }
+        }
+      },
+      "ConnectorResetConnectorProgress": {
+        "type": "object",
+        "description": "Progress for a single connector within a reset job.",
+        "additionalProperties": false,
+        "properties": {
+          "connectorName": {
+            "type": "string",
+            "description": "The connector name (e.g. nightscout)."
+          },
+          "state": {
+            "description": "The connector's current state in this job.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ConnectorResetConnectorState"
+              }
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "A human-readable message for the outcome, once the connector has completed.",
+            "nullable": true
+          },
+          "result": {
+            "description": "The full sync result, once the connector has completed.",
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SyncResult"
+              }
+            ]
+          }
+        }
+      },
+      "ConnectorResetConnectorState": {
+        "type": "string",
+        "description": "State of a single connector within a reset job.",
+        "x-enumNames": [
+          "Pending",
+          "Running",
+          "Succeeded",
+          "Failed"
+        ],
+        "enum": [
+          "Pending",
+          "Running",
+          "Succeeded",
+          "Failed"
+        ]
+      },
+      "SyncResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "startTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "itemsSynced": {
+            "type": "object",
+            "x-dictionaryKey": {
+              "$ref": "#/components/schemas/SyncDataType"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "lastEntryTimes": {
+            "type": "object",
+            "x-dictionaryKey": {
+              "$ref": "#/components/schemas/SyncDataType"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "PlatformSettingsSummary": {
         "type": "object",
         "additionalProperties": false,
@@ -34628,89 +35244,6 @@
             "format": "int64"
           }
         }
-      },
-      "SyncResult": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "startTime": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "endTime": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "itemsSynced": {
-            "type": "object",
-            "x-dictionaryKey": {
-              "$ref": "#/components/schemas/SyncDataType"
-            },
-            "additionalProperties": {
-              "type": "integer",
-              "format": "int32"
-            }
-          },
-          "lastEntryTimes": {
-            "type": "object",
-            "x-dictionaryKey": {
-              "$ref": "#/components/schemas/SyncDataType"
-            },
-            "additionalProperties": {
-              "type": "string",
-              "format": "date-time",
-              "nullable": true
-            }
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "SyncDataType": {
-        "type": "string",
-        "description": "",
-        "x-enumNames": [
-          "Glucose",
-          "ManualBG",
-          "Calibrations",
-          "Boluses",
-          "CarbIntake",
-          "BGChecks",
-          "BolusCalculations",
-          "Notes",
-          "DeviceEvents",
-          "StateSpans",
-          "Profiles",
-          "DeviceStatus",
-          "Activity",
-          "Food"
-        ],
-        "enum": [
-          "Glucose",
-          "ManualBG",
-          "Calibrations",
-          "Boluses",
-          "CarbIntake",
-          "BGChecks",
-          "BolusCalculations",
-          "Notes",
-          "DeviceEvents",
-          "StateSpans",
-          "Profiles",
-          "DeviceStatus",
-          "Activity",
-          "Food"
-        ]
       },
       "SyncRequest": {
         "type": "object",
@@ -44291,6 +44824,21 @@
                 "$ref": "#/components/schemas/ExtendedAnalysisConfig"
               }
             ]
+          }
+        }
+      },
+      "ReportAnalysisResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "analysis": {
+            "$ref": "#/components/schemas/ExtendedGlucoseAnalytics"
+          },
+          "averagedStats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AveragedStats"
+            }
           }
         }
       },

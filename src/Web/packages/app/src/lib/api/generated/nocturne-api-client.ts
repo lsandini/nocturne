@@ -8540,6 +8540,268 @@ export class AccessRequestClient {
     }
 }
 
+export class ConnectorAdminClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "";
+    }
+
+    /**
+     * List the connectors a target tenant has configured, with their last-sync and health state.
+     * @param tenantId The target tenant.
+     */
+    getTenantConnectors(tenantId: string, signal?: AbortSignal): Promise<TenantConnectorsDto> {
+        let url_ = this.baseUrl + "/api/v4/admin/connectors/{tenantId}";
+        if (tenantId === undefined || tenantId === null)
+            throw new globalThis.Error("The parameter 'tenantId' must be defined.");
+        url_ = url_.replace("{tenantId}", encodeURIComponent("" + tenantId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGetTenantConnectors(_response);
+        });
+    }
+
+    protected processGetTenantConnectors(response: Response): Promise<TenantConnectorsDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TenantConnectorsDto;
+            return result200;
+            });
+        } else if (status === 404) {
+            return response.text().then((_responseText) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result404);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<TenantConnectorsDto>(null as any);
+    }
+
+    /**
+     * Enqueue a background reset of the sync cursor for every connector configured on a target
+    tenant, forcing a re-pull of history. Use after fixing a connector bug to push corrected data
+    to an affected tenant.
+     * @param tenantId The target tenant whose connectors should be re-pulled.
+     * @param request Optional lower bound and data-type filter, mirroring the per-tenant reset endpoint.
+     */
+    resetTenantCursors(tenantId: string, request: AdminResetCursorsRequest, signal?: AbortSignal): Promise<ConnectorResetJobInfo> {
+        let url_ = this.baseUrl + "/api/v4/admin/connectors/{tenantId}/reset-cursors";
+        if (tenantId === undefined || tenantId === null)
+            throw new globalThis.Error("The parameter 'tenantId' must be defined.");
+        url_ = url_.replace("{tenantId}", encodeURIComponent("" + tenantId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processResetTenantCursors(_response);
+        });
+    }
+
+    protected processResetTenantCursors(response: Response): Promise<ConnectorResetJobInfo> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 202) {
+            return response.text().then((_responseText) => {
+            let result202: any = null;
+            result202 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ConnectorResetJobInfo;
+            return result202;
+            });
+        } else if (status === 404) {
+            return response.text().then((_responseText) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result404);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ConnectorResetJobInfo>(null as any);
+    }
+
+    /**
+     * Get the progress of a connector cursor reset job, including per-connector outcomes as they land.
+     * @param jobId The job id returned by ResetTenantCursors.
+     */
+    getResetJobStatus(jobId: string, signal?: AbortSignal): Promise<ConnectorResetJobStatus> {
+        let url_ = this.baseUrl + "/api/v4/admin/connectors/jobs/{jobId}";
+        if (jobId === undefined || jobId === null)
+            throw new globalThis.Error("The parameter 'jobId' must be defined.");
+        url_ = url_.replace("{jobId}", encodeURIComponent("" + jobId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGetResetJobStatus(_response);
+        });
+    }
+
+    protected processGetResetJobStatus(response: Response): Promise<ConnectorResetJobStatus> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ConnectorResetJobStatus;
+            return result200;
+            });
+        } else if (status === 404) {
+            return response.text().then((_responseText) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result404);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ConnectorResetJobStatus>(null as any);
+    }
+
+    /**
+     * Request cancellation of a running connector cursor reset job. Connectors already re-pulled
+    keep their committed data; the fan-out simply stops before the next connector.
+     * @param jobId The job id to cancel.
+     */
+    cancelResetJob(jobId: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/v4/admin/connectors/jobs/{jobId}/cancel";
+        if (jobId === undefined || jobId === null)
+            throw new globalThis.Error("The parameter 'jobId' must be defined.");
+        url_ = url_.replace("{jobId}", encodeURIComponent("" + jobId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCancelResetJob(_response);
+        });
+    }
+
+    protected processCancelResetJob(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status === 404) {
+            return response.text().then((_responseText) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result404);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+}
+
+export class PlatformAccessClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "";
+    }
+
+    /**
+     * Mint a platform-access grant for the given tenant slug and redirect the operator into the
+    tenant. Bounces through OIDC login if there is no session yet; 403s if the session is not a
+    platform admin.
+     * @param tenant (optional) Target tenant slug.
+     */
+    access(tenant?: string | null | undefined, signal?: AbortSignal): Promise<FileResponse> {
+        let url_ = this.baseUrl + "/api/auth/platform-access?";
+        if (tenant !== undefined && tenant !== null)
+            url_ += "tenant=" + encodeURIComponent("" + tenant) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/octet-stream"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processAccess(_response);
+        });
+    }
+
+    protected processAccess(response: Response): Promise<FileResponse> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200 || status === 206) {
+            const contentDisposition = response.headers ? response.headers.get("content-disposition") : undefined;
+            let fileNameMatch = contentDisposition ? /filename\*=(?:(\\?['"])(.*?)\1|(?:[^\s]+'.*?')?([^;\n]*))/g.exec(contentDisposition) : undefined;
+            let fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[3] || fileNameMatch[2] : undefined;
+            if (fileName) {
+                fileName = decodeURIComponent(fileName);
+            } else {
+                fileNameMatch = contentDisposition ? /filename="?([^"]*?)"?(;|$)/g.exec(contentDisposition) : undefined;
+                fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[1] : undefined;
+            }
+            return response.blob().then(blob => { return { fileName: fileName, data: blob, status: status, headers: _headers }; });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<FileResponse>(null as any);
+    }
+}
+
 export class PlatformSettingsClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -23424,6 +23686,62 @@ export class StatisticsClient {
     }
 
     /**
+     * Extended glucose analytics for a date range, computed server-side. Fetches glucose,
+    manual boluses, and carb intakes for the window from the database and runs
+    AnalyzeGlucoseDataExtended plus
+    CalculateAveragedStats.
+     * @param startDate (optional) Start of the window (inclusive, UTC).
+     * @param endDate (optional) End of the window (exclusive, UTC).
+     * @param population (optional) Diabetes population for clinical target assessment. Defaults to Type 1 adult.
+     * @return The extended analytics and time-of-day averaged stats for the window.
+     */
+    getRangeAnalytics(startDate?: Date | undefined, endDate?: Date | undefined, population?: DiabetesPopulation | undefined, signal?: AbortSignal): Promise<ReportAnalysisResult> {
+        let url_ = this.baseUrl + "/api/v4/Statistics/range-analytics?";
+        if (startDate === null)
+            throw new globalThis.Error("The parameter 'startDate' cannot be null.");
+        else if (startDate !== undefined)
+            url_ += "startDate=" + encodeURIComponent(startDate ? "" + startDate.toISOString() : "") + "&";
+        if (endDate === null)
+            throw new globalThis.Error("The parameter 'endDate' cannot be null.");
+        else if (endDate !== undefined)
+            url_ += "endDate=" + encodeURIComponent(endDate ? "" + endDate.toISOString() : "") + "&";
+        if (population === null)
+            throw new globalThis.Error("The parameter 'population' cannot be null.");
+        else if (population !== undefined)
+            url_ += "population=" + encodeURIComponent("" + population) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGetRangeAnalytics(_response);
+        });
+    }
+
+    protected processGetRangeAnalytics(response: Response): Promise<ReportAnalysisResult> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ReportAnalysisResult;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ReportAnalysisResult>(null as any);
+    }
+
+    /**
      * Calculate Glucose Management Indicator (GMI)
      * @param meanGlucose Mean glucose in mg/dL
      * @return GMI with value and interpretation
@@ -29616,6 +29934,136 @@ export interface ApproveAccessRequestRequest {
     directPermissions?: string[] | undefined;
 }
 
+/** A tenant and the connectors it has configured. */
+export interface TenantConnectorsDto {
+    /** The tenant id. */
+    tenantId?: string;
+    /** The tenant slug, for display. */
+    tenantSlug?: string;
+    /** One entry per configured connector. */
+    connectors?: TenantConnectorSummary[];
+}
+
+/** Sync/health summary for a single configured connector. */
+export interface TenantConnectorSummary {
+    /** The connector name (e.g. nightscout). */
+    connectorName?: string;
+    /** Whether the connector last reported healthy. */
+    isHealthy?: boolean;
+    /** When the connector last completed a successful sync. */
+    lastSuccessfulSync?: Date | undefined;
+    /** When the connector last attempted a sync. */
+    lastSyncAttempt?: Date | undefined;
+    /** The most recent error message, if any. */
+    lastErrorMessage?: string | undefined;
+}
+
+/** Summary returned when a reset job is created (202 Accepted). */
+export interface ConnectorResetJobInfo {
+    /** The job id, used to poll status. */
+    jobId?: string;
+    /** The target tenant being reset. */
+    tenantId?: string;
+    /** The target tenant's slug, for display. */
+    tenantSlug?: string;
+    /** When the job was created. */
+    createdAt?: Date;
+    /** The job's current state. */
+    state?: ConnectorResetJobState;
+    /** How many connectors the job will reset. */
+    totalConnectors?: number;
+}
+
+/** Lifecycle state of a connector cursor reset job. */
+export enum ConnectorResetJobState {
+    Pending = "Pending",
+    Running = "Running",
+    Completed = "Completed",
+    Failed = "Failed",
+    Cancelled = "Cancelled",
+}
+
+/** Request body for a cross-tenant cursor reset. Mirrors the per-tenant ResetCursorRequest shape. */
+export interface AdminResetCursorsRequest {
+    /** Optional lower bound for the re-pull. When null, all available history is re-ingested. */
+    from?: Date | undefined;
+    /** Optional set of data types to reset. When null or empty, every supported data type is reset. */
+    dataTypes?: SyncDataType[] | undefined;
+}
+
+export enum SyncDataType {
+    Glucose = "Glucose",
+    ManualBG = "ManualBG",
+    Calibrations = "Calibrations",
+    Boluses = "Boluses",
+    CarbIntake = "CarbIntake",
+    BGChecks = "BGChecks",
+    BolusCalculations = "BolusCalculations",
+    Notes = "Notes",
+    DeviceEvents = "DeviceEvents",
+    StateSpans = "StateSpans",
+    Profiles = "Profiles",
+    DeviceStatus = "DeviceStatus",
+    Activity = "Activity",
+    Food = "Food",
+}
+
+/** A pollable snapshot of a reset job's progress. */
+export interface ConnectorResetJobStatus {
+    /** The job id. */
+    jobId?: string;
+    /** The target tenant being reset. */
+    tenantId?: string;
+    /** The target tenant's slug, for display. */
+    tenantSlug?: string;
+    /** The job's current lifecycle state. */
+    state?: ConnectorResetJobState;
+    /** When the job was created. */
+    createdAt?: Date;
+    /** When the background work started, or null if not yet started. */
+    startedAt?: Date | undefined;
+    /** When the job reached a terminal state, or null if still running. */
+    completedAt?: Date | undefined;
+    /** An error message when the whole job failed (not a single connector). */
+    errorMessage?: string | undefined;
+    /** Total connectors the job will reset. */
+    totalConnectors?: number;
+    /** How many connectors have finished (succeeded or failed). */
+    completedConnectors?: number;
+    /** Per-connector progress, in configured order. */
+    connectors?: ConnectorResetConnectorProgress[];
+}
+
+/** Progress for a single connector within a reset job. */
+export interface ConnectorResetConnectorProgress {
+    /** The connector name (e.g. nightscout). */
+    connectorName?: string;
+    /** The connector's current state in this job. */
+    state?: ConnectorResetConnectorState;
+    /** A human-readable message for the outcome, once the connector has completed. */
+    message?: string | undefined;
+    /** The full sync result, once the connector has completed. */
+    result?: SyncResult | undefined;
+}
+
+/** State of a single connector within a reset job. */
+export enum ConnectorResetConnectorState {
+    Pending = "Pending",
+    Running = "Running",
+    Succeeded = "Succeeded",
+    Failed = "Failed",
+}
+
+export interface SyncResult {
+    success?: boolean;
+    message?: string;
+    startTime?: Date;
+    endTime?: Date;
+    itemsSynced?: { [key in keyof typeof SyncDataType]?: number; };
+    lastEntryTimes?: { [key in keyof typeof SyncDataType]?: Date; };
+    errors?: string[];
+}
+
 export interface PlatformSettingsSummary {
     category?: string;
     enabled?: boolean;
@@ -30011,33 +30459,6 @@ export interface ConnectorDataSummary {
     connectorId?: string;
     recordCounts?: { [key: string]: number; };
     total?: number;
-}
-
-export interface SyncResult {
-    success?: boolean;
-    message?: string;
-    startTime?: Date;
-    endTime?: Date;
-    itemsSynced?: { [key in keyof typeof SyncDataType]?: number; };
-    lastEntryTimes?: { [key in keyof typeof SyncDataType]?: Date; };
-    errors?: string[];
-}
-
-export enum SyncDataType {
-    Glucose = "Glucose",
-    ManualBG = "ManualBG",
-    Calibrations = "Calibrations",
-    Boluses = "Boluses",
-    CarbIntake = "CarbIntake",
-    BGChecks = "BGChecks",
-    BolusCalculations = "BolusCalculations",
-    Notes = "Notes",
-    DeviceEvents = "DeviceEvents",
-    StateSpans = "StateSpans",
-    Profiles = "Profiles",
-    DeviceStatus = "DeviceStatus",
-    Activity = "Activity",
-    Food = "Food",
 }
 
 export interface SyncRequest {
@@ -33079,6 +33500,11 @@ export interface ExtendedGlucoseAnalyticsRequest {
     population?: DiabetesPopulation;
     /** Optional extended analysis configuration */
     config?: ExtendedAnalysisConfig | undefined;
+}
+
+export interface ReportAnalysisResult {
+    analysis?: ExtendedGlucoseAnalytics;
+    averagedStats?: AveragedStats[];
 }
 
 /** Request model for clinical assessment */
