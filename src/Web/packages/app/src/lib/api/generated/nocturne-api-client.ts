@@ -30525,6 +30525,7 @@ export interface StatusResponse {
     head?: string | undefined;
     isDemo?: boolean | undefined;
     nextResetAt?: Date | undefined;
+    anonymousReadAccess?: boolean;
 }
 
 export interface CreateIssueResponse {
