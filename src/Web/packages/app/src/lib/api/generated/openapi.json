@@ -26663,7 +26663,6 @@
           "StepCountReadWrite",
           "FoodRead",
           "FoodReadWrite",
-          "StatisticsRead",
           "HealthRead",
           "HealthReadWrite",
           "FullAccess"
@@ -26688,7 +26687,6 @@
           "stepcount.readwrite",
           "food.read",
           "food.readwrite",
-          "statistics.read",
           "health.read",
           "health.readwrite",
           "*"

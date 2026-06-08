@@ -27938,7 +27938,6 @@ export enum OAuthScope {
     StepCountReadWrite = "stepcount.readwrite",
     FoodRead = "food.read",
     FoodReadWrite = "food.readwrite",
-    StatisticsRead = "statistics.read",
     HealthRead = "health.read",
     HealthReadWrite = "health.readwrite",
     FullAccess = "*",
