@@ -36590,6 +36590,9 @@
           "conditionType": {
             "$ref": "#/components/schemas/AlertConditionType"
           },
+          "severity": {
+            "$ref": "#/components/schemas/AlertRuleSeverity"
+          },
           "startedAt": {
             "type": "string",
             "format": "date-time"
