@@ -56,6 +56,7 @@
   import DeliveryInspectionDialog from "./dialogs/DeliveryInspectionDialog.svelte";
   import TreatmentInspectionDialog from "./dialogs/TreatmentInspectionDialog.svelte";
   import BasalInjectionMarkers from "./markers/BasalInjectionMarkers.svelte";
+  import BgCheckMarkers from "./markers/BgCheckMarkers.svelte";
 
   interface Props {
     dateRange?: { from: Date | string; to: Date | string };
@@ -377,6 +378,7 @@
           <SystemEventMarkers />
           <TrackerMarkers />
           <BasalInjectionMarkers />
+          <BgCheckMarkers />
           <ChartHighlight />
         {/snippet}
         {#snippet overlays()}
