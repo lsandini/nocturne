@@ -895,6 +895,41 @@
         "x-remote-type": "command"
       }
     },
+    "/api/v4/platform/tls-authorize": {
+      "get": {
+        "tags": [
+          "Tls Authorization"
+        ],
+        "summary": "Returns 200 when a certificate should be issued for domain\n(the apex domain or an active tenant subdomain), 404 otherwise.",
+        "operationId": "TlsAuthorization_Authorize",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v4/insulin/basal-injections": {
       "post": {
         "tags": [

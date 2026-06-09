@@ -95,6 +95,7 @@ import {
   TenantClient,
   TenantAlertSettingsClient,
   TimezoneTimelineClient,
+  TlsAuthorizationClient,
   TotpClient,
   TrackerAlertsClient,
   TrackersClient,
@@ -202,6 +203,7 @@ export class ApiClient {
   public readonly tenant: TenantClient;
   public readonly tenantAlertSettings: TenantAlertSettingsClient;
   public readonly timezoneTimeline: TimezoneTimelineClient;
+  public readonly tlsAuthorization: TlsAuthorizationClient;
   public readonly totp: TotpClient;
   public readonly trackerAlerts: TrackerAlertsClient;
   public readonly trackers: TrackersClient;
@@ -309,6 +311,7 @@ export class ApiClient {
     this.tenant = new TenantClient(apiBaseUrl, http);
     this.tenantAlertSettings = new TenantAlertSettingsClient(apiBaseUrl, http);
     this.timezoneTimeline = new TimezoneTimelineClient(apiBaseUrl, http);
+    this.tlsAuthorization = new TlsAuthorizationClient(apiBaseUrl, http);
     this.totp = new TotpClient(apiBaseUrl, http);
     this.trackerAlerts = new TrackerAlertsClient(apiBaseUrl, http);
     this.trackers = new TrackersClient(apiBaseUrl, http);
