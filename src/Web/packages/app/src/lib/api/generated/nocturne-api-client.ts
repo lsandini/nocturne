@@ -21732,6 +21732,12 @@ export class AuditClient {
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AuditConfigDto;
             return result200;
             });
+        } else if (status === 400) {
+            return response.text().then((_responseText) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result400);
+            });
         } else if (status === 403) {
             return response.text().then((_responseText) => {
             let result403: any = null;
