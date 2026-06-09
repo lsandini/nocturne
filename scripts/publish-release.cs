@@ -50,6 +50,7 @@ try
 
     var composePath = Path.Combine(tempDir, "docker-compose.yaml");
     var portainerComposePath = Path.Combine(tempDir, "docker-compose.portainer.yaml");
+    var byoProxyComposePath = Path.Combine(tempDir, "docker-compose.byo-proxy.yaml");
     var envMetadataPath = Path.Combine(tempDir, "env-metadata.json");
 
     if (!File.Exists(composePath))
@@ -81,6 +82,7 @@ try
             (string?)n["default"]))
         .ToArray();
 
+    var caddyfileSource = Path.Combine(repoRoot, "src", "Aspire", "Nocturne.Aspire.Host", "caddy", "Caddyfile");
     var groups = ParseAspireEnv(Path.Combine(tempDir, ".env"), envMetadata);
     var envExample = GenerateEnvExample(groups, envMetadata);
 
@@ -90,6 +92,16 @@ try
     var deployDockerComposeDir = Path.Combine(repoRoot, "deploy", "docker-compose");
     Directory.CreateDirectory(deployDockerComposeDir);
     File.Copy(composePath, Path.Combine(deployDockerComposeDir, "docker-compose.yaml"), overwrite: true);
+    // Ship the Caddyfile next to the compose file so the bundled TLS proxy's
+    // ./caddy/Caddyfile bind-mount resolves (the portainer bundle inlines it
+    // instead — see PortainerComposePublisher).
+    var deployCaddyDir = Path.Combine(deployDockerComposeDir, "caddy");
+    Directory.CreateDirectory(deployCaddyDir);
+    File.Copy(caddyfileSource, Path.Combine(deployCaddyDir, "Caddyfile"), overwrite: true);
+    // Bring-your-own-proxy override (generated alongside the compose by the
+    // byo-proxy publish step; absent when Caddy is disabled).
+    if (File.Exists(byoProxyComposePath))
+        File.Copy(byoProxyComposePath, Path.Combine(deployDockerComposeDir, "docker-compose.byo-proxy.yaml"), overwrite: true);
     File.WriteAllText(Path.Combine(deployDockerComposeDir, ".env.example"), envExample);
     Console.WriteLine("[publish-release] Updated deploy/docker-compose/");
 
