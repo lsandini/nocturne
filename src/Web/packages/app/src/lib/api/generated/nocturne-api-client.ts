@@ -1037,6 +1037,187 @@ export class SetupClient {
     }
 }
 
+export class TimezoneTimelineClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "";
+    }
+
+    /**
+     * Get the tenant's timezone timeline, ordered by effective date.
+     */
+    getTimeline(signal?: AbortSignal): Promise<TimezoneTimelineEntry[]> {
+        let url_ = this.baseUrl + "/api/v4/timezone-timeline";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGetTimeline(_response);
+        });
+    }
+
+    protected processGetTimeline(response: Response): Promise<TimezoneTimelineEntry[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TimezoneTimelineEntry[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<TimezoneTimelineEntry[]>(null as any);
+    }
+
+    /**
+     * Create or update a timeline entry. EffectiveFrom is a local wall-clock date/time (the
+    moment, in local terms, that the zone took effect). A trip is two entries (out + return); a
+    move is a single entry; the origin entry covers all earlier history.
+     */
+    upsert(request: UpsertTimezoneEntryRequest, signal?: AbortSignal): Promise<TimezoneTimelineEntry> {
+        let url_ = this.baseUrl + "/api/v4/timezone-timeline";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpsert(_response);
+        });
+    }
+
+    protected processUpsert(response: Response): Promise<TimezoneTimelineEntry> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TimezoneTimelineEntry;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<TimezoneTimelineEntry>(null as any);
+    }
+
+    /**
+     * Delete a timeline entry.
+     */
+    delete(id: string, signal?: AbortSignal): Promise<FileResponse> {
+        let url_ = this.baseUrl + "/api/v4/timezone-timeline/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+                "Accept": "application/octet-stream"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDelete(_response);
+        });
+    }
+
+    protected processDelete(response: Response): Promise<FileResponse> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200 || status === 206) {
+            const contentDisposition = response.headers ? response.headers.get("content-disposition") : undefined;
+            let fileNameMatch = contentDisposition ? /filename\*=(?:(\\?['"])(.*?)\1|(?:[^\s]+'.*?')?([^;\n]*))/g.exec(contentDisposition) : undefined;
+            let fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[3] || fileNameMatch[2] : undefined;
+            if (fileName) {
+                fileName = decodeURIComponent(fileName);
+            } else {
+                fileNameMatch = contentDisposition ? /filename="?([^"]*?)"?(;|$)/g.exec(contentDisposition) : undefined;
+                fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[1] : undefined;
+            }
+            return response.blob().then(blob => { return { fileName: fileName, data: blob, status: status, headers: _headers }; });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<FileResponse>(null as any);
+    }
+
+    /**
+     * Re-correct already-imported data after a timeline change by re-pulling the affected window from
+    Glooko. Records re-flow the normal publish path and upsert in place on their stable
+    SyncIdentifier, so timestamps move without duplicating. Intended to be called after the user
+    confirms the affected window. Runs synchronously; the window is bounded.
+     * @param request Optional lower bound (UTC). When null, the connector's default window is used.
+     */
+    recorrect(request: RecorrectRequest, signal?: AbortSignal): Promise<RecorrectResult> {
+        let url_ = this.baseUrl + "/api/v4/timezone-timeline/recorrect";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processRecorrect(_response);
+        });
+    }
+
+    protected processRecorrect(response: Response): Promise<RecorrectResult> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as RecorrectResult;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<RecorrectResult>(null as any);
+    }
+}
+
 export class BasalInjectionClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -28127,6 +28308,38 @@ export interface SetupOwnerOidcRequest {
     providerId?: string;
 }
 
+export interface TimezoneTimelineEntry {
+    id?: string;
+    effectiveFrom?: Date;
+    timezone?: string;
+    createdAt?: Date | undefined;
+    updatedAt?: Date | undefined;
+}
+
+/** Request to create or update a timezone timeline entry. */
+export interface UpsertTimezoneEntryRequest {
+    /** Existing entry id to update, or null to create. */
+    id?: string | undefined;
+    /** Local wall-clock instant from which the zone takes effect. */
+    effectiveFrom?: Date;
+    /** IANA timezone id (e.g. "Australia/Sydney"). */
+    timezone?: string;
+}
+
+/** Outcome of a re-correction re-sync. */
+export interface RecorrectResult {
+    /** Whether the re-sync succeeded. */
+    success?: boolean;
+    /** Human-readable status message. */
+    message?: string;
+}
+
+/** Request to re-correct imported data after a timeline change. */
+export interface RecorrectRequest {
+    /** Optional UTC lower bound for the re-pull window. */
+    from?: Date | undefined;
+}
+
 export interface BasalInjection {
     id?: string;
     timestamp?: Date;
@@ -32122,6 +32335,7 @@ export interface SensorGlucose {
     correlationId?: string | undefined;
     patientDeviceId?: string | undefined;
     legacyId?: string | undefined;
+    syncIdentifier?: string | undefined;
     createdAt?: Date;
     modifiedAt?: Date;
     mgdl?: number;

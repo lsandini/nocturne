@@ -94,6 +94,7 @@ import {
   SystemEventsClient,
   TenantClient,
   TenantAlertSettingsClient,
+  TimezoneTimelineClient,
   TotpClient,
   TrackerAlertsClient,
   TrackersClient,
@@ -200,6 +201,7 @@ export class ApiClient {
   public readonly systemEvents: SystemEventsClient;
   public readonly tenant: TenantClient;
   public readonly tenantAlertSettings: TenantAlertSettingsClient;
+  public readonly timezoneTimeline: TimezoneTimelineClient;
   public readonly totp: TotpClient;
   public readonly trackerAlerts: TrackerAlertsClient;
   public readonly trackers: TrackersClient;
@@ -306,6 +308,7 @@ export class ApiClient {
     this.systemEvents = new SystemEventsClient(apiBaseUrl, http);
     this.tenant = new TenantClient(apiBaseUrl, http);
     this.tenantAlertSettings = new TenantAlertSettingsClient(apiBaseUrl, http);
+    this.timezoneTimeline = new TimezoneTimelineClient(apiBaseUrl, http);
     this.totp = new TotpClient(apiBaseUrl, http);
     this.trackerAlerts = new TrackerAlertsClient(apiBaseUrl, http);
     this.trackers = new TrackersClient(apiBaseUrl, http);

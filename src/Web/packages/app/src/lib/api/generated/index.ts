@@ -8,6 +8,7 @@ export { deleteAll, updateStatus } from './coachMarks.generated.remote';
 // './insulinCatalogs.generated.remote' - all exports collide, import directly
 export { getTenants, getTransitionStatus } from './platforms.generated.remote';
 export { validateUsername, ownerOptions, ownerComplete, ownerOidc } from './setups.generated.remote';
+export { getTimeline, recorrect } from './timezoneTimelines.generated.remote';
 // './basalInjections.generated.remote' - all exports collide, import directly
 // './bolusCalculations.generated.remote' - all exports collide, import directly
 // './bolus.generated.remote' - all exports collide, import directly
@@ -25,7 +26,7 @@ export * from './profiles.generated.remote';
 export * from './userPreferences.generated.remote';
 export { approve, deny } from './accessRequests.generated.remote';
 export * from './connectorAdmins.generated.remote';
-export { upsert } from './platformSettings.generated.remote';
+// './platformSettings.generated.remote' - all exports collide, import directly
 export { addMember, removeMember, listInvites, provision, getMemberCredentials, attachOidcIdentity, removePasskeyCredential, removeOidcIdentity } from './tenants.generated.remote';
 export * from './services.generated.remote';
 // './status.generated.remote' - all exports collide, import directly

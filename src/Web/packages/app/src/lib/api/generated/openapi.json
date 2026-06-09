@@ -762,6 +762,139 @@
         }
       }
     },
+    "/api/v4/timezone-timeline": {
+      "get": {
+        "tags": [
+          "Timezone Timeline"
+        ],
+        "summary": "Get the tenant's timezone timeline, ordered by effective date.",
+        "operationId": "TimezoneTimeline_GetTimeline",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TimezoneTimelineEntry"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "query"
+      },
+      "put": {
+        "tags": [
+          "Timezone Timeline"
+        ],
+        "summary": "Create or update a timeline entry. EffectiveFrom is a local wall-clock date/time (the\nmoment, in local terms, that the zone took effect). A trip is two entries (out + return); a\nmove is a single entry; the origin entry covers all earlier history.",
+        "operationId": "TimezoneTimeline_Upsert",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTimezoneEntryRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimezoneTimelineEntry"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command",
+        "x-remote-invalidates": [
+          "GetTimeline"
+        ]
+      }
+    },
+    "/api/v4/timezone-timeline/{id}": {
+      "delete": {
+        "tags": [
+          "Timezone Timeline"
+        ],
+        "summary": "Delete a timeline entry.",
+        "operationId": "TimezoneTimeline_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command",
+        "x-remote-invalidates": [
+          "GetTimeline"
+        ]
+      }
+    },
+    "/api/v4/timezone-timeline/recorrect": {
+      "post": {
+        "tags": [
+          "Timezone Timeline"
+        ],
+        "summary": "Re-correct already-imported data after a timeline change by re-pulling the affected window from\nGlooko. Records re-flow the normal publish path and upsert in place on their stable\nSyncIdentifier, so timestamps move without duplicating. Intended to be called after the user\nconfirms the affected window. Runs synchronously; the window is bounded.",
+        "operationId": "TimezoneTimeline_Recorrect",
+        "requestBody": {
+          "x-name": "request",
+          "description": "Optional lower bound (UTC). When null, the connector's default window is used.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecorrectRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecorrectResult"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command"
+      }
+    },
     "/api/v4/insulin/basal-injections": {
       "post": {
         "tags": [
@@ -27181,6 +27314,83 @@
           }
         }
       },
+      "TimezoneTimelineEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "UpsertTimezoneEntryRequest": {
+        "type": "object",
+        "description": "Request to create or update a timezone timeline entry.",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Existing entry id to update, or null to create.",
+            "format": "guid",
+            "nullable": true
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "description": "Local wall-clock instant from which the zone takes effect.",
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone id (e.g. \"Australia/Sydney\")."
+          }
+        }
+      },
+      "RecorrectResult": {
+        "type": "object",
+        "description": "Outcome of a re-correction re-sync.",
+        "additionalProperties": false,
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the re-sync succeeded."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable status message."
+          }
+        }
+      },
+      "RecorrectRequest": {
+        "type": "object",
+        "description": "Request to re-correct imported data after a timeline change.",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Optional UTC lower bound for the re-pull window.",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
       "BasalInjection": {
         "type": "object",
         "additionalProperties": false,
@@ -39627,6 +39837,10 @@
             "nullable": true
           },
           "legacyId": {
+            "type": "string",
+            "nullable": true
+          },
+          "syncIdentifier": {
             "type": "string",
             "nullable": true
           },
