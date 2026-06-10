@@ -30557,6 +30557,7 @@ export enum SyncDataType {
     ManualBG = "ManualBG",
     Calibrations = "Calibrations",
     Boluses = "Boluses",
+    BasalInjections = "BasalInjections",
     CarbIntake = "CarbIntake",
     BGChecks = "BGChecks",
     BolusCalculations = "BolusCalculations",
