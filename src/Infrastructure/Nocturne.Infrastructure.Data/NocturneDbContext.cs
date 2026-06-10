@@ -2576,9 +2576,6 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
 
             entity.HasIndex(e => new { e.TenantId, e.CreatedAt })
                 .HasDatabaseName("ix_mutation_audit_log_created");
-
-            entity.HasIndex(e => new { e.EntityType, e.EntityId, e.Action, e.CreatedAt })
-                .HasDatabaseName("ix_mutation_audit_log_entity_lookup");
         });
 
         // Configure Read Access Log entity defaults and indexes
@@ -3424,6 +3421,15 @@ public class NocturneDbContext : DbContext, IDataProtectionKeyContext
                 var nullValue = Expression.Constant(null, typeof(DateTime?));
                 var isNotDeleted = Expression.Equal(deletedAtProperty, nullValue);
                 body = Expression.AndAlso(body, isNotDeleted);
+
+                // Records whether the latest soft-delete was user-initiated. The soft-delete
+                // dedup discriminator (SoftDeleteDedupExtensions) blocks connector resync from
+                // re-creating a user-deleted row, while a system-sweep delete stays re-creatable.
+                // A shadow property so it lands on every soft-deletable table without a per-entity edit.
+                modelBuilder.Entity(entityType.ClrType)
+                    .Property<bool>("DeletedByUser")
+                    .HasColumnName("deleted_by_user")
+                    .HasDefaultValue(false);
             }
 
             modelBuilder.Entity(entityType.ClrType).HasQueryFilter(Expression.Lambda(body, parameter));
