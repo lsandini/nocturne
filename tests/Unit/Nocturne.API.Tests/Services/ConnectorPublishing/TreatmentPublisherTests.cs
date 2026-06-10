@@ -25,6 +25,8 @@ public class TreatmentPublisherTests
     private readonly Mock<IBGCheckRepository> _mockBGCheckRepository;
     private readonly Mock<IBolusCalculationRepository> _mockBolusCalculationRepository;
     private readonly Mock<ITempBasalRepository> _mockTempBasalRepository;
+    private readonly Mock<IBasalInjectionRepository> _mockBasalInjectionRepository;
+    private readonly Mock<IPatientInsulinRepository> _mockPatientInsulinRepository;
     private readonly Mock<IBasalRateResolver> _mockBasalRateResolver;
     private readonly Mock<ITherapySettingsResolver> _mockTherapySettingsResolver;
     private readonly TreatmentPublisher _publisher;
@@ -37,6 +39,8 @@ public class TreatmentPublisherTests
         _mockBGCheckRepository = new Mock<IBGCheckRepository>();
         _mockBolusCalculationRepository = new Mock<IBolusCalculationRepository>();
         _mockTempBasalRepository = new Mock<ITempBasalRepository>();
+        _mockBasalInjectionRepository = new Mock<IBasalInjectionRepository>();
+        _mockPatientInsulinRepository = new Mock<IPatientInsulinRepository>();
         _mockBasalRateResolver = new Mock<IBasalRateResolver>();
         _mockTherapySettingsResolver = new Mock<ITherapySettingsResolver>();
 
@@ -66,6 +70,8 @@ public class TreatmentPublisherTests
             _mockBGCheckRepository.Object,
             _mockBolusCalculationRepository.Object,
             _mockTempBasalRepository.Object,
+            _mockBasalInjectionRepository.Object,
+            _mockPatientInsulinRepository.Object,
             _mockBasalRateResolver.Object,
             _mockTherapySettingsResolver.Object,
             auditContext,
@@ -358,4 +364,196 @@ public class TreatmentPublisherTests
             r => r.BuildResolverAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    #region PublishBasalInjectionsAsync
+
+    [Fact]
+    public async Task PublishBasalInjectionsAsync_EmptyList_ReturnsTrue()
+    {
+        var result = await _publisher.PublishBasalInjectionsAsync([], "glooko-connector");
+
+        result.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task PublishBasalInjectionsAsync_WithRecords_CallsBulkCreate()
+    {
+        _mockPatientInsulinRepository
+            .Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _mockPatientInsulinRepository
+            .Setup(r => r.CreateAsync(It.IsAny<PatientInsulin>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PatientInsulin m, CancellationToken _) => m);
+        _mockBasalInjectionRepository
+            .Setup(r => r.BulkCreateAsync(It.IsAny<IEnumerable<BasalInjection>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<BasalInjection> records, CancellationToken _) => records);
+
+        var records = new List<BasalInjection>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Timestamp = DateTime.UtcNow,
+                Units = 22,
+                DataSource = "glooko-connector",
+                InsulinContext = new TreatmentInsulinContext
+                {
+                    PatientInsulinId = Guid.Empty,
+                    InsulinName = "Tresiba (Insulin Degludec)",
+                    Dia = 42.0,
+                    Peak = 660,
+                    Curve = "bilinear",
+                    Concentration = 100,
+                },
+            }
+        };
+
+        var result = await _publisher.PublishBasalInjectionsAsync(records, "glooko-connector");
+
+        result.Should().BeTrue();
+        _mockBasalInjectionRepository.Verify(
+            r => r.BulkCreateAsync(It.IsAny<IEnumerable<BasalInjection>>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task PublishBasalInjectionsAsync_ResolvesPatientInsulin_WhenGuidEmpty()
+    {
+        _mockPatientInsulinRepository
+            .Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _mockPatientInsulinRepository
+            .Setup(r => r.CreateAsync(It.IsAny<PatientInsulin>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PatientInsulin m, CancellationToken _) => m);
+        _mockBasalInjectionRepository
+            .Setup(r => r.BulkCreateAsync(It.IsAny<IEnumerable<BasalInjection>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<BasalInjection> records, CancellationToken _) => records);
+
+        var records = new List<BasalInjection>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Timestamp = DateTime.UtcNow,
+                Units = 22,
+                DataSource = "glooko-connector",
+                InsulinContext = new TreatmentInsulinContext
+                {
+                    PatientInsulinId = Guid.Empty,
+                    InsulinName = "Tresiba (Insulin Degludec)",
+                    Dia = 42.0,
+                    Peak = 660,
+                    Curve = "bilinear",
+                    Concentration = 100,
+                },
+            }
+        };
+
+        await _publisher.PublishBasalInjectionsAsync(records, "glooko-connector");
+
+        // Should auto-create a PatientInsulin record
+        _mockPatientInsulinRepository.Verify(
+            r => r.CreateAsync(It.Is<PatientInsulin>(pi =>
+                pi.Name == "Tresiba (Insulin Degludec)" &&
+                pi.Role == InsulinRole.Basal &&
+                pi.IsCurrent == true),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        // The record should now have a real PatientInsulinId (not Guid.Empty)
+        records[0].InsulinContext.PatientInsulinId.Should().NotBe(Guid.Empty);
+    }
+
+    [Fact]
+    public async Task PublishBasalInjectionsAsync_ReusesExistingPatientInsulin()
+    {
+        var existingInsulinId = Guid.NewGuid();
+        _mockPatientInsulinRepository
+            .Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new PatientInsulin
+                {
+                    Id = existingInsulinId,
+                    Name = "Tresiba (Insulin Degludec)",
+                    Role = InsulinRole.Basal,
+                    IsCurrent = true,
+                    Dia = 42.0,
+                    Peak = 660,
+                    Curve = "bilinear",
+                    Concentration = 100,
+                }
+            ]);
+        _mockBasalInjectionRepository
+            .Setup(r => r.BulkCreateAsync(It.IsAny<IEnumerable<BasalInjection>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<BasalInjection> records, CancellationToken _) => records);
+
+        var records = new List<BasalInjection>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Timestamp = DateTime.UtcNow,
+                Units = 22,
+                DataSource = "glooko-connector",
+                InsulinContext = new TreatmentInsulinContext
+                {
+                    PatientInsulinId = Guid.Empty,
+                    InsulinName = "Tresiba (Insulin Degludec)",
+                    Dia = 42.0,
+                    Peak = 660,
+                    Curve = "bilinear",
+                    Concentration = 100,
+                },
+            }
+        };
+
+        await _publisher.PublishBasalInjectionsAsync(records, "glooko-connector");
+
+        // Should NOT create a new PatientInsulin — reuses existing
+        _mockPatientInsulinRepository.Verify(
+            r => r.CreateAsync(It.IsAny<PatientInsulin>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        // Should resolve to the existing ID
+        records[0].InsulinContext.PatientInsulinId.Should().Be(existingInsulinId);
+    }
+
+    [Fact]
+    public async Task PublishBasalInjectionsAsync_SkipsResolution_WhenPatientInsulinIdAlreadySet()
+    {
+        var existingId = Guid.NewGuid();
+        _mockBasalInjectionRepository
+            .Setup(r => r.BulkCreateAsync(It.IsAny<IEnumerable<BasalInjection>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<BasalInjection> records, CancellationToken _) => records);
+
+        var records = new List<BasalInjection>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                Timestamp = DateTime.UtcNow,
+                Units = 22,
+                DataSource = "glooko-connector",
+                InsulinContext = new TreatmentInsulinContext
+                {
+                    PatientInsulinId = existingId,
+                    InsulinName = "Tresiba (Insulin Degludec)",
+                    Dia = 42.0,
+                    Peak = 660,
+                    Curve = "bilinear",
+                    Concentration = 100,
+                },
+            }
+        };
+
+        await _publisher.PublishBasalInjectionsAsync(records, "glooko-connector");
+
+        // Should not touch PatientInsulin repo at all
+        _mockPatientInsulinRepository.Verify(
+            r => r.GetAllAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+        records[0].InsulinContext.PatientInsulinId.Should().Be(existingId);
+    }
+
+    #endregion
 }

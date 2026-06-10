@@ -62,6 +62,7 @@ public class GlookoConnectorService : BaseConnectorService<GlookoConnectorConfig
         SyncDataType.Glucose,
         SyncDataType.ManualBG,
         SyncDataType.Boluses,
+        SyncDataType.BasalInjections,
         SyncDataType.CarbIntake,
         SyncDataType.StateSpans,
         SyncDataType.DeviceEvents,
@@ -524,6 +525,15 @@ public class GlookoConnectorService : BaseConnectorService<GlookoConnectorConfig
 
         await PublishRecordTypeAsync(result, SyncDataType.CarbIntake, activeTypes,
             allCarbs, PublishCarbIntakeDataAsync, config, cancellationToken);
+
+        // 2b. Manual insulin (pen injections: gkInsulinBasal → BasalInjection, gkInsulinBolus → Bolus)
+        var (manualBasalInjections, manualBoluses) = _v4TreatmentMapper.MapV3ManualInsulin(v3Data);
+
+        await PublishRecordTypeAsync(result, SyncDataType.Boluses, activeTypes,
+            manualBoluses, PublishBolusDataAsync, config, cancellationToken);
+
+        await PublishRecordTypeAsync(result, SyncDataType.BasalInjections, activeTypes,
+            manualBasalInjections, PublishBasalInjectionDataAsync, config, cancellationToken);
 
         // 3. Foods + attribution (coupled with carbs)
         GlookoFood[]? v2Foods = null;

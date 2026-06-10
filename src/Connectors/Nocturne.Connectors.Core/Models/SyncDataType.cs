@@ -9,6 +9,7 @@ public enum SyncDataType
     ManualBG,
     Calibrations,
     Boluses,
+    BasalInjections,
     CarbIntake,
     BGChecks,
     BolusCalculations,
