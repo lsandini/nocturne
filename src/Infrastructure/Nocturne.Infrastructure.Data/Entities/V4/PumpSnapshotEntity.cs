@@ -127,6 +127,13 @@ public class PumpSnapshotEntity : ITenantScoped, ISoftDeletable, IV4Entity
     public string? PumpStatus { get; set; }
 
     /// <summary>
+    /// Canonical closed-loop operating mode (a PumpModeState name, e.g. "Automatic"/"Manual")
+    /// </summary>
+    [Column("pump_mode")]
+    [MaxLength(64)]
+    public string? PumpMode { get; set; }
+
+    /// <summary>
     /// Pump clock time
     /// </summary>
     [Column("clock")]

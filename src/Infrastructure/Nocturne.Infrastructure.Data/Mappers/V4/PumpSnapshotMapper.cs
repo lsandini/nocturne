@@ -35,6 +35,7 @@ public static class PumpSnapshotMapper
             Bolusing = model.Bolusing,
             Suspended = model.Suspended,
             PumpStatus = model.PumpStatus,
+            PumpMode = model.PumpMode,
             Clock = model.Clock,
             DeviceId = model.DeviceId,
             PatientDeviceId = model.PatientDeviceId,
@@ -72,6 +73,7 @@ public static class PumpSnapshotMapper
             Bolusing = entity.Bolusing,
             Suspended = entity.Suspended,
             PumpStatus = entity.PumpStatus,
+            PumpMode = entity.PumpMode,
             Clock = entity.Clock,
             DeviceId = entity.DeviceId,
             PatientDeviceId = entity.PatientDeviceId,
@@ -105,6 +107,7 @@ public static class PumpSnapshotMapper
         entity.Bolusing = model.Bolusing;
         entity.Suspended = model.Suspended;
         entity.PumpStatus = model.PumpStatus;
+        entity.PumpMode = model.PumpMode;
         entity.Clock = model.Clock;
         entity.DeviceId = model.DeviceId;
         entity.PatientDeviceId = model.PatientDeviceId;

@@ -102,6 +102,11 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
             pumpDeviceId = await DecomposePumpAsync(ds, legacyId, result, ct);
         }
 
+        if (ds.Cgm != null)
+        {
+            await RegisterCgmDeviceAsync(ds, ct);
+        }
+
         if (ds.OpenAps != null)
         {
             await DecomposeApsFromOpenApsAsync(ds, legacyId, result, pumpDeviceId, ct);
@@ -176,6 +181,17 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
 
     #region Pump Decomposition
 
+    /// <summary>
+    /// The pump-device identity key. Only the CareLink connector supplies a real pump serial today;
+    /// preferring serial for other sources would re-key existing devices that newly start reporting
+    /// <c>pump.serial</c>, orphaning their history. So the serial preference is gated to CareLink
+    /// (identified by its device-name prefix); every other source keeps the model-as-key behavior.
+    /// </summary>
+    private static string? PumpDeviceKey(DeviceStatus ds) =>
+        ds.Device?.StartsWith("CareLink", StringComparison.OrdinalIgnoreCase) == true
+            ? ds.Pump?.Serial ?? ds.Pump?.Model
+            : ds.Pump?.Model;
+
     private async Task<Guid?> DecomposePumpAsync(
         DeviceStatus ds, string? legacyId, V4Models.DecompositionResult result, CancellationToken ct)
     {
@@ -184,7 +200,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
         model.DeviceId = await _deviceService.ResolveAsync(
             V4Models.DeviceCategory.InsulinPump,
             ds.Pump?.Manufacturer,
-            ds.Pump?.Model,
+            PumpDeviceKey(ds),
             ds.Mills, ct);
         model.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(model.DeviceId, ds.Mills, ct);
 
@@ -208,6 +224,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
         }
 
         await DecomposePumpSuspensionAsync(ds, persisted, result, ct);
+        await DecomposePumpModeAsync(ds, persisted, result, ct);
 
         return model.DeviceId;
     }
@@ -342,6 +359,127 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
                     openSpan.Id, transitionAt);
             }
         }
+    }
+
+    /// <summary>
+    /// Detects closed-loop mode transitions and maintains <see cref="StateSpanCategory.PumpMode"/> /
+    /// <see cref="PumpModeState.Automatic"/> vs <see cref="PumpModeState.Manual"/> state spans.
+    /// </summary>
+    /// <remarks>
+    /// <para>No-op unless the snapshot carries a <see cref="V4Models.PumpSnapshot.PumpMode"/> signal —
+    /// only connectors that observe the pump's algorithm state (currently CareLink) populate it, so
+    /// every other source leaves it null and emits no spans.</para>
+    /// <para>Compares the just-upserted snapshot's mode against the most-recent prior snapshot
+    /// (strictly earlier). On a change (or first observation), closes any open span of the opposite
+    /// mode and opens one for the new mode. Steady-state (equal modes) is a no-op, so the open span
+    /// spans the whole period rather than fragmenting per snapshot.</para>
+    /// <para>Independent of the Suspended span machinery: both share the <c>PumpMode</c> category but
+    /// are filtered by <see cref="StateSpan.State"/>, so an Automatic/Manual span and a Suspended span
+    /// may legitimately overlap.</para>
+    /// <para>Idempotency: the open span carries a deterministic
+    /// <c>OriginalId = "pump-mode:{snapshotId}"</c>, and the open-span guard prevents duplicates when
+    /// the same device status is re-decomposed.</para>
+    /// </remarks>
+    private async Task DecomposePumpModeAsync(
+        DeviceStatus ds,
+        V4Models.PumpSnapshot newSnapshot,
+        V4Models.DecompositionResult result,
+        CancellationToken ct)
+    {
+        var newMode = ParsePumpMode(newSnapshot.PumpMode);
+        if (newMode is null)
+            return;
+
+        var prior = await _pumpRepo.GetLatestBeforeAsync(newSnapshot.Timestamp, ct);
+        var priorMode = ParsePumpMode(prior?.PumpMode);
+
+        if (priorMode == newMode)
+            return;
+
+        // Prefer pump's own clock for the transition timestamp; fall back to ingestion timestamp.
+        var transitionAt = ParseTimestampToDateTime(newSnapshot.Clock) ?? newSnapshot.Timestamp;
+
+        // Close any open span for the opposite Automatic/Manual mode. Skip spans that start after this
+        // transition so re-decomposing an older snapshot can't invert a newer span's range.
+        var oppositeMode = newMode == PumpModeState.Automatic ? PumpModeState.Manual : PumpModeState.Automatic;
+        var openOpposite = (await _stateSpanService.GetStateSpansAsync(
+            category: StateSpanCategory.PumpMode,
+            state: oppositeMode.ToString(),
+            active: true,
+            count: int.MaxValue,
+            cancellationToken: ct)).ToList();
+
+        foreach (var openSpan in openOpposite)
+        {
+            if (openSpan.StartTimestamp > transitionAt)
+                continue;
+
+            openSpan.EndTimestamp = transitionAt;
+            var closed = await _stateSpanService.UpsertStateSpanAsync(openSpan, ct);
+            result.UpdatedRecords.Add(closed);
+            _logger.LogDebug(
+                "Closed PumpMode/{Mode} StateSpan {SpanId} at {EndTimestamp}",
+                oppositeMode, openSpan.Id, transitionAt);
+        }
+
+        // Open a span for the new mode unless one is already open (idempotent re-decomposition).
+        var existingOpen = await _stateSpanService.GetStateSpansAsync(
+            category: StateSpanCategory.PumpMode,
+            state: newMode.Value.ToString(),
+            active: true,
+            count: 1,
+            cancellationToken: ct);
+
+        if (existingOpen.Any())
+            return;
+
+        var span = new StateSpan
+        {
+            Category = StateSpanCategory.PumpMode,
+            State = newMode.Value.ToString(),
+            StartTimestamp = transitionAt,
+            EndTimestamp = null,
+            Source = ds.Device,
+            OriginalId = $"pump-mode:{newSnapshot.Id}",
+        };
+
+        var upserted = await _stateSpanService.UpsertStateSpanAsync(span, ct);
+        result.CreatedRecords.Add(upserted);
+        _logger.LogDebug(
+            "Opened PumpMode/{Mode} StateSpan for snapshot {SnapshotId} (legacy {LegacyId})",
+            newMode.Value, newSnapshot.Id, newSnapshot.LegacyId);
+    }
+
+    /// <summary>
+    /// Parses a stored pump-mode string into the Automatic/Manual subset of <see cref="PumpModeState"/>
+    /// that this decomposer tracks. Returns null for absent or out-of-scope states (e.g. Suspended,
+    /// which is owned by <see cref="DecomposePumpSuspensionAsync"/>).
+    /// </summary>
+    private static PumpModeState? ParsePumpMode(string? value)
+    {
+        if (Enum.TryParse<PumpModeState>(value, out var mode)
+            && mode is PumpModeState.Automatic or PumpModeState.Manual)
+            return mode;
+        return null;
+    }
+
+    #endregion
+
+    #region CGM Registration
+
+    /// <summary>
+    /// Registers the CGM sensor in the device registry. The CGM has no dedicated snapshot table —
+    /// only the canonical <see cref="V4Models.Device"/> is upserted (stamping first/last seen) so the
+    /// sensor shows up as an in-use device. No-op unless the connector populated manufacturer +
+    /// model/serial (<see cref="IDeviceService.ResolveAsync"/> returns null when either is missing).
+    /// </summary>
+    private async Task RegisterCgmDeviceAsync(DeviceStatus ds, CancellationToken ct)
+    {
+        await _deviceService.ResolveAsync(
+            V4Models.DeviceCategory.CGM,
+            ds.Cgm?.Manufacturer,
+            ds.Cgm?.Serial ?? ds.Cgm?.Model,
+            ds.Mills, ct);
     }
 
     #endregion
@@ -502,12 +640,17 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
                 pumpModel.DeviceId = await _deviceService.ResolveAsync(
                     V4Models.DeviceCategory.InsulinPump,
                     ds.Pump.Manufacturer,
-                    ds.Pump.Model,
+                    PumpDeviceKey(ds),
                     ds.Mills, ct);
                 pumpModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpModel.DeviceId, ds.Mills, ct);
 
                 pumpDeviceId = pumpModel.DeviceId;
                 pumpList.Add(pumpModel);
+            }
+
+            if (ds.Cgm != null)
+            {
+                await RegisterCgmDeviceAsync(ds, ct);
             }
 
             if (ds.OpenAps != null)
@@ -609,6 +752,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
                 if (ds != null)
                 {
                     await DecomposePumpSuspensionAsync(ds, pumpSnapshot, result, ct);
+                    await DecomposePumpModeAsync(ds, pumpSnapshot, result, ct);
                 }
             }
         }
@@ -755,6 +899,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
             Bolusing = ds.Pump.Status?.Bolusing,
             Suspended = ds.Pump.Status?.Suspended,
             PumpStatus = ds.Pump.Status?.Status,
+            PumpMode = ds.Pump.PumpMode,
             Clock = ds.Pump.Clock,
             Iob = ds.Pump.Iob?.Iob,
             BolusIob = ds.Pump.Iob?.BolusIob,

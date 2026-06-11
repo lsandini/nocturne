@@ -37,6 +37,7 @@
   import { Switch } from "$lib/components/ui/switch";
   import { Label } from "$lib/components/ui/label";
   import ConnectorConfigForm from "$lib/components/settings/ConnectorConfigForm.svelte";
+  import CareLinkConnectPanel from "$lib/components/connectors/CareLinkConnectPanel.svelte";
   import SettingsPageSkeleton from "$lib/components/settings/SettingsPageSkeleton.svelte";
 
   import {
@@ -138,6 +139,19 @@
   // --- User-editable state ---
   let configuration = $state<Record<string, unknown>>({});
   let secrets = $state<Record<string, string>>({});
+
+  // CareLink uses a browser-based sign-in (manual-paste OAuth) instead of a stored password.
+  const isCareLink = $derived(connectorInfo?.id?.toLowerCase() === "carelink");
+
+  function onCareLinkConnected(info: { username?: string | null; country?: string | null }) {
+    // Auto-fill identity the sign-in discovered, without clobbering anything already set.
+    if (info.username && !configuration.username) {
+      configuration = { ...configuration, username: info.username };
+    }
+    if (info.country && !configuration.countryCode) {
+      configuration = { ...configuration, countryCode: info.country.toLowerCase() };
+    }
+  }
   let syncResult = $state<SyncResult | null>(null);
 
   // --- UI state ---
@@ -381,6 +395,11 @@
             />
           </CardContent>
         </Card>
+      {/if}
+
+      <!-- CareLink browser-based sign-in -->
+      {#if isCareLink}
+        <CareLinkConnectPanel onConnected={onCareLinkConnected} />
       {/if}
 
       <!-- Configuration Form -->

@@ -65,6 +65,7 @@ public class GlookoConnectorService : BaseConnectorService<GlookoConnectorConfig
         SyncDataType.BasalInjections,
         SyncDataType.CarbIntake,
         SyncDataType.StateSpans,
+        SyncDataType.TempBasals,
         SyncDataType.DeviceEvents,
         SyncDataType.Profiles
     ];
@@ -451,16 +452,20 @@ public class GlookoConnectorService : BaseConnectorService<GlookoConnectorConfig
         await PublishFoodEntriesAndAttributeAsync(
             foodEntryImports, carbs, foodResolver, config, cancellationToken);
 
-        // 4. State spans + temp basals (old code only counted temp basals in ItemsSynced)
+        // 4. State spans
         if (activeTypes.Contains(SyncDataType.StateSpans))
         {
             var stateSpans = _stateSpanMapper.TransformV2ToStateSpans(batchData);
             if (stateSpans.Count > 0)
                 await PublishStateSpanDataAsync(stateSpans, config, cancellationToken);
+        }
 
+        // 5. Temp basals
+        if (activeTypes.Contains(SyncDataType.TempBasals))
+        {
             var tempBasals = _tempBasalMapper.TransformV2ToTempBasals(batchData);
             if (tempBasals.Count > 0 && await PublishTempBasalDataAsync(tempBasals, config, cancellationToken))
-                result.ItemsSynced[SyncDataType.StateSpans] = tempBasals.Count;
+                result.ItemsSynced[SyncDataType.TempBasals] = tempBasals.Count;
         }
 
         return true;
@@ -572,17 +577,21 @@ public class GlookoConnectorService : BaseConnectorService<GlookoConnectorConfig
         await PublishFoodEntriesAndAttributeAsync(
             foodEntryImports, allCarbs, foodResolver, config, cancellationToken);
 
-        // 4. State spans + temp basals (old code only counted temp basals in ItemsSynced)
+        // 4. State spans
         if (activeTypes.Contains(SyncDataType.StateSpans))
         {
             var stateSpans = _stateSpanMapper.TransformV3ToStateSpans(v3Data);
             stateSpans.AddRange(_stateSpanMapper.TransformV3PumpModeToStateSpans(v3Data));
             if (stateSpans.Count > 0)
                 await PublishStateSpanDataAsync(stateSpans, config, cancellationToken);
+        }
 
+        // 4b. Temp basals
+        if (activeTypes.Contains(SyncDataType.TempBasals))
+        {
             var tempBasals = _tempBasalMapper.TransformV3ToTempBasals(v3Data);
             if (tempBasals.Count > 0 && await PublishTempBasalDataAsync(tempBasals, config, cancellationToken))
-                result.ItemsSynced[SyncDataType.StateSpans] = tempBasals.Count;
+                result.ItemsSynced[SyncDataType.TempBasals] = tempBasals.Count;
         }
 
         // 5. Device events + system events (summed into single ItemsSynced entry)

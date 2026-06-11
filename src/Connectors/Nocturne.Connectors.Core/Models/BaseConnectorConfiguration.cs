@@ -77,6 +77,9 @@ public abstract class BaseConnectorConfiguration : IConnectorConfiguration
     [ConnectorProperty(ConnectorPropertyKey.SyncStateSpans, DefaultValue = "true")]
     public bool SyncStateSpans { get; set; } = true;
 
+    [ConnectorProperty(ConnectorPropertyKey.SyncTempBasals, DefaultValue = "true")]
+    public bool SyncTempBasals { get; set; } = true;
+
     [ConnectorProperty(ConnectorPropertyKey.SyncProfiles, DefaultValue = "true")]
     public bool SyncProfiles { get; set; } = true;
 
@@ -111,6 +114,7 @@ public abstract class BaseConnectorConfiguration : IConnectorConfiguration
         SyncDataType.Notes => SyncNotes,
         SyncDataType.DeviceEvents => SyncDeviceEvents,
         SyncDataType.StateSpans => SyncStateSpans,
+        SyncDataType.TempBasals => SyncTempBasals,
         SyncDataType.Profiles => SyncProfiles,
         SyncDataType.DeviceStatus => SyncDeviceStatus,
         SyncDataType.Activity => SyncActivity,

@@ -1587,6 +1587,79 @@ public class DeviceStatusDecomposerTests : IDisposable
         uploader.DeviceId.Should().Be(expectedDeviceId);
     }
 
+    [Fact]
+    public async Task DecomposePumpAsync_PrefersSerialOverModelForRegistration()
+    {
+        var ds = new DeviceStatus
+        {
+            Id = "pump-serial-resolve",
+            Mills = 1700000000000,
+            Device = "carelink://Medtronic",
+            Pump = new PumpStatus
+            {
+                Manufacturer = "Medtronic",
+                Model = "MMT-1885",
+                Serial = "NG4304436H",
+            }
+        };
+
+        await _decomposer.DecomposeAsync(ds);
+
+        _deviceServiceMock.Verify(s => s.ResolveAsync(
+            V4Models.DeviceCategory.InsulinPump,
+            "Medtronic",
+            "NG4304436H",
+            1700000000000,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DecomposeAsync_WithCgmIdentity_RegistersCgmDevice()
+    {
+        var ds = new DeviceStatus
+        {
+            Id = "cgm-device-resolve",
+            Mills = 1700000000000,
+            Device = "carelink://Medtronic",
+            Cgm = new CgmStatus
+            {
+                Manufacturer = "Medtronic",
+                Model = "Guardian (DURABLE)",
+                SensorState = "NO_ERROR_MESSAGE",
+            }
+        };
+
+        await _decomposer.DecomposeAsync(ds);
+
+        _deviceServiceMock.Verify(s => s.ResolveAsync(
+            V4Models.DeviceCategory.CGM,
+            "Medtronic",
+            "Guardian (DURABLE)",
+            1700000000000,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DecomposeAsync_WithoutCgm_DoesNotRegisterCgmDevice()
+    {
+        var ds = new DeviceStatus
+        {
+            Id = "no-cgm",
+            Mills = 1700000000000,
+            Device = "carelink://Medtronic",
+            Pump = new PumpStatus { Manufacturer = "Medtronic", Model = "MMT-1885" }
+        };
+
+        await _decomposer.DecomposeAsync(ds);
+
+        _deviceServiceMock.Verify(s => s.ResolveAsync(
+            V4Models.DeviceCategory.CGM,
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<long>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     #endregion
 
     #region AAPS Date Normalization
@@ -2278,6 +2351,143 @@ public class DeviceStatusDecomposerTests : IDisposable
         span.StartTimestamp.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(t0 + minute).UtcDateTime);
         span.EndTimestamp.Should().NotBeNull();
         span.EndTimestamp.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(t0 + 2 * minute).UtcDateTime);
+    }
+
+    #endregion
+
+    #region Pump Mode Sequence (integration-style)
+
+    /// <summary>
+    /// Backs <see cref="IStateSpanService"/> with an in-memory list so the open/close transition logic
+    /// (UpsertStateSpanAsync + GetStateSpansAsync) is coherent. Mirrors the suspension sequence test.
+    /// </summary>
+    private List<StateSpan> SetupInMemoryStateSpans()
+    {
+        var spans = new List<StateSpan>();
+
+        _stateSpanServiceMock
+            .Setup(s => s.UpsertStateSpanAsync(It.IsAny<StateSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((StateSpan span, CancellationToken _) =>
+            {
+                if (!string.IsNullOrEmpty(span.OriginalId))
+                {
+                    var existing = spans.FirstOrDefault(s => s.OriginalId == span.OriginalId);
+                    if (existing is not null)
+                    {
+                        existing.EndTimestamp = span.EndTimestamp ?? existing.EndTimestamp;
+                        existing.StartTimestamp = span.StartTimestamp;
+                        existing.Source = span.Source ?? existing.Source;
+                        return existing;
+                    }
+                }
+
+                span.Id ??= Guid.NewGuid().ToString();
+                spans.Add(span);
+                return span;
+            });
+
+        _stateSpanServiceMock
+            .Setup(s => s.GetStateSpansAsync(
+                It.IsAny<StateSpanCategory?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(),
+                It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<bool?>(),
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((StateSpanCategory? cat, string? state, DateTime? from, DateTime? to,
+                           string? source, bool? active, int count, int skip, bool desc, CancellationToken _) =>
+            {
+                IEnumerable<StateSpan> q = spans;
+                if (cat.HasValue) q = q.Where(s => s.Category == cat.Value);
+                if (state != null) q = q.Where(s => s.State == state);
+                if (active == true) q = q.Where(s => s.EndTimestamp == null);
+                if (active == false) q = q.Where(s => s.EndTimestamp != null);
+                return q.Take(count).ToArray();
+            });
+
+        return spans;
+    }
+
+    private static DeviceStatus MakePumpModeDs(string id, long mills, string? pumpMode, bool suspended = false) => new()
+    {
+        Id = id,
+        Mills = mills,
+        Device = "carelink-connector",
+        Pump = new PumpStatus
+        {
+            Manufacturer = "Medtronic",
+            Model = "780G",
+            PumpMode = pumpMode,
+            Status = new PumpStatusDetails { Suspended = suspended },
+        },
+    };
+
+    [Fact]
+    public async Task DecomposeAsync_PumpModeSequence_TogglesAutomaticAndManualSpans()
+    {
+        var spans = SetupInMemoryStateSpans();
+        var t0 = 1700000000000L;
+        var minute = 60_000L;
+
+        await _decomposer.DecomposeAsync(MakePumpModeDs("ds-1", t0, "Manual"));
+        await _decomposer.DecomposeAsync(MakePumpModeDs("ds-2", t0 + minute, "Automatic"));
+        await _decomposer.DecomposeAsync(MakePumpModeDs("ds-3", t0 + 2 * minute, "Manual"));
+
+        var modeSpans = spans.Where(s => s.Category == StateSpanCategory.PumpMode).ToList();
+
+        var automatic = modeSpans.Single(s => s.State == PumpModeState.Automatic.ToString());
+        automatic.StartTimestamp.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(t0 + minute).UtcDateTime);
+        automatic.EndTimestamp.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(t0 + 2 * minute).UtcDateTime);
+
+        var manualSpans = modeSpans.Where(s => s.State == PumpModeState.Manual.ToString()).ToList();
+        manualSpans.Should().HaveCount(2);
+        manualSpans.Should().ContainSingle(s => s.EndTimestamp == null
+            && s.StartTimestamp == DateTimeOffset.FromUnixTimeMilliseconds(t0 + 2 * minute).UtcDateTime);
+        manualSpans.Should().ContainSingle(s => s.EndTimestamp == DateTimeOffset.FromUnixTimeMilliseconds(t0 + minute).UtcDateTime);
+    }
+
+    [Fact]
+    public async Task DecomposeAsync_PumpModeSteadyState_KeepsSingleOpenSpan()
+    {
+        var spans = SetupInMemoryStateSpans();
+        var t0 = 1700000000000L;
+        var minute = 60_000L;
+
+        await _decomposer.DecomposeAsync(MakePumpModeDs("ds-1", t0, "Automatic"));
+        await _decomposer.DecomposeAsync(MakePumpModeDs("ds-2", t0 + minute, "Automatic"));
+        await _decomposer.DecomposeAsync(MakePumpModeDs("ds-3", t0 + 2 * minute, "Automatic"));
+
+        var modeSpans = spans.Where(s => s.Category == StateSpanCategory.PumpMode).ToList();
+        modeSpans.Should().ContainSingle();
+        modeSpans[0].State.Should().Be(PumpModeState.Automatic.ToString());
+        modeSpans[0].EndTimestamp.Should().BeNull();
+        modeSpans[0].StartTimestamp.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(t0).UtcDateTime);
+    }
+
+    [Fact]
+    public async Task DecomposeAsync_AutomaticAndSuspendedSpans_CoexistOpen()
+    {
+        var spans = SetupInMemoryStateSpans();
+        var t0 = 1700000000000L;
+        var minute = 60_000L;
+
+        await _decomposer.DecomposeAsync(MakePumpModeDs("ds-1", t0, "Manual", suspended: false));
+        await _decomposer.DecomposeAsync(MakePumpModeDs("ds-2", t0 + minute, "Automatic", suspended: true));
+
+        var open = spans.Where(s => s.Category == StateSpanCategory.PumpMode && s.EndTimestamp == null)
+            .Select(s => s.State).ToList();
+
+        open.Should().Contain(PumpModeState.Automatic.ToString());
+        open.Should().Contain(PumpModeState.Suspended.ToString());
+    }
+
+    [Fact]
+    public async Task DecomposeAsync_NoPumpMode_EmitsNoModeSpan()
+    {
+        var spans = SetupInMemoryStateSpans();
+
+        await _decomposer.DecomposeAsync(MakePumpModeDs("ds-1", 1700000000000L, pumpMode: null));
+
+        spans.Where(s => s.Category == StateSpanCategory.PumpMode
+                && (s.State == PumpModeState.Automatic.ToString() || s.State == PumpModeState.Manual.ToString()))
+            .Should().BeEmpty();
     }
 
     #endregion

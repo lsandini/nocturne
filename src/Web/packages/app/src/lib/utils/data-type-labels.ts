@@ -10,6 +10,7 @@ const DATA_TYPE_LABELS: Record<SyncDataType, string> = {
 	[SyncDataType.Calibrations]: 'Calibrations',
 	[SyncDataType.Boluses]: 'Boluses',
 	[SyncDataType.CarbIntake]: 'Carb Intake',
+	[SyncDataType.TempBasals]: 'Basal',
 	[SyncDataType.BGChecks]: 'BG Checks',
 	[SyncDataType.BolusCalculations]: 'Bolus Calculations',
 	[SyncDataType.Notes]: 'Notes',

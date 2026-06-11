@@ -25,6 +25,7 @@ public enum ConnectorPropertyKey
     SyncNotes,
     SyncDeviceEvents,
     SyncStateSpans,
+    SyncTempBasals,
     SyncProfiles,
     SyncDeviceStatus,
     SyncActivity,
