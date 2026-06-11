@@ -19547,6 +19547,98 @@
         "x-remote-type": "query"
       }
     },
+    "/api/v4/connectors/carelink/connect/start": {
+      "post": {
+        "tags": [
+          "Care Link Connect"
+        ],
+        "summary": "Begins the connect flow: builds the Auth0 authorize URL and stashes the PKCE verifier server-side.\nThe client opens AuthorizeUrl in a new tab.",
+        "operationId": "CareLinkConnect_Start",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CareLinkConnectStartRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareLinkConnectStartResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command"
+      }
+    },
+    "/api/v4/connectors/carelink/connect/complete": {
+      "post": {
+        "tags": [
+          "Care Link Connect"
+        ],
+        "summary": "Completes the connect flow: exchanges the pasted code for a refresh token and stores it as the\nconnector secret. Returns the discovered username/country for auto-filling the config form.",
+        "operationId": "CareLinkConnect_Complete",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CareLinkConnectCompleteRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareLinkConnectCompleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command",
+        "x-remote-invalidates": [
+          "GetConfiguration",
+          "GetAllConnectorStatus"
+        ]
+      }
+    },
     "/api/v4/connectors/config/{connectorName}": {
       "get": {
         "tags": [
@@ -34338,6 +34430,7 @@
           "Notes",
           "DeviceEvents",
           "StateSpans",
+          "TempBasals",
           "Profiles",
           "DeviceStatus",
           "Activity",
@@ -34355,6 +34448,7 @@
           "Notes",
           "DeviceEvents",
           "StateSpans",
+          "TempBasals",
           "Profiles",
           "DeviceStatus",
           "Activity",
@@ -41622,6 +41716,10 @@
             "type": "string",
             "nullable": true
           },
+          "pumpMode": {
+            "type": "string",
+            "nullable": true
+          },
           "clock": {
             "type": "string",
             "nullable": true
@@ -41754,6 +41852,62 @@
             "type": "object",
             "nullable": true,
             "additionalProperties": {}
+          }
+        }
+      },
+      "CareLinkConnectStartResponse": {
+        "type": "object",
+        "description": "The authorize URL to open and the opaque state to echo back on completion.",
+        "additionalProperties": false,
+        "properties": {
+          "authorizeUrl": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "CareLinkConnectStartRequest": {
+        "type": "object",
+        "description": "Request to begin the CareLink connect flow.",
+        "additionalProperties": false,
+        "properties": {
+          "server": {
+            "type": "string",
+            "description": "Region: \"EU\" (Outside-US, incl. Australia) or \"US\"."
+          }
+        }
+      },
+      "CareLinkConnectCompleteResponse": {
+        "type": "object",
+        "description": "Result of completing the flow, with optional profile details for auto-fill.",
+        "additionalProperties": false,
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "country": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CareLinkConnectCompleteRequest": {
+        "type": "object",
+        "description": "Request to complete the flow with the code captured from the redirect.",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The authorization code, or the full com.medtronic.carepartner:/sso?code=... URL."
+          },
+          "state": {
+            "type": "string"
           }
         }
       },

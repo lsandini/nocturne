@@ -21005,6 +21005,113 @@ export class UploaderSnapshotClient {
     }
 }
 
+export class CareLinkConnectClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "";
+    }
+
+    /**
+     * Begins the connect flow: builds the Auth0 authorize URL and stashes the PKCE verifier server-side.
+    The client opens AuthorizeUrl in a new tab.
+     */
+    start(request: CareLinkConnectStartRequest, signal?: AbortSignal): Promise<CareLinkConnectStartResponse> {
+        let url_ = this.baseUrl + "/api/v4/connectors/carelink/connect/start";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processStart(_response);
+        });
+    }
+
+    protected processStart(response: Response): Promise<CareLinkConnectStartResponse> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as CareLinkConnectStartResponse;
+            return result200;
+            });
+        } else if (status === 400) {
+            return response.text().then((_responseText) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result400);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<CareLinkConnectStartResponse>(null as any);
+    }
+
+    /**
+     * Completes the connect flow: exchanges the pasted code for a refresh token and stores it as the
+    connector secret. Returns the discovered username/country for auto-filling the config form.
+     */
+    complete(request: CareLinkConnectCompleteRequest, signal?: AbortSignal): Promise<CareLinkConnectCompleteResponse> {
+        let url_ = this.baseUrl + "/api/v4/connectors/carelink/connect/complete";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processComplete(_response);
+        });
+    }
+
+    protected processComplete(response: Response): Promise<CareLinkConnectCompleteResponse> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as CareLinkConnectCompleteResponse;
+            return result200;
+            });
+        } else if (status === 400) {
+            return response.text().then((_responseText) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result400);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<CareLinkConnectCompleteResponse>(null as any);
+    }
+}
+
 export class ConfigurationClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -30564,6 +30671,7 @@ export enum SyncDataType {
     Notes = "Notes",
     DeviceEvents = "DeviceEvents",
     StateSpans = "StateSpans",
+    TempBasals = "TempBasals",
     Profiles = "Profiles",
     DeviceStatus = "DeviceStatus",
     Activity = "Activity",
@@ -32913,6 +33021,7 @@ export interface PumpSnapshot {
     bolusing?: boolean | undefined;
     suspended?: boolean | undefined;
     pumpStatus?: string | undefined;
+    pumpMode?: string | undefined;
     clock?: string | undefined;
     deviceId?: string | undefined;
     patientDeviceId?: string | undefined;
@@ -32946,6 +33055,32 @@ export interface UploaderSnapshot {
     type?: string | undefined;
     deviceId?: string | undefined;
     additionalProperties?: { [key: string]: any; } | undefined;
+}
+
+/** The authorize URL to open and the opaque state to echo back on completion. */
+export interface CareLinkConnectStartResponse {
+    authorizeUrl?: string;
+    state?: string;
+}
+
+/** Request to begin the CareLink connect flow. */
+export interface CareLinkConnectStartRequest {
+    /** Region: "EU" (Outside-US, incl. Australia) or "US". */
+    server?: string;
+}
+
+/** Result of completing the flow, with optional profile details for auto-fill. */
+export interface CareLinkConnectCompleteResponse {
+    success?: boolean;
+    username?: string | undefined;
+    country?: string | undefined;
+}
+
+/** Request to complete the flow with the code captured from the redirect. */
+export interface CareLinkConnectCompleteRequest {
+    /** The authorization code, or the full com.medtronic.carepartner:/sso?code=... URL. */
+    code?: string;
+    state?: string;
 }
 
 export interface ConnectorConfigurationResponse {

@@ -22,6 +22,7 @@ import {
   BolusClient,
   BolusCalculationClient,
   CalibrationClient,
+  CareLinkConnectClient,
   ChartDataClient,
   ChatIdentityClient,
   ChatIdentityDirectoryClient,
@@ -130,6 +131,7 @@ export class ApiClient {
   public readonly bolus: BolusClient;
   public readonly bolusCalculation: BolusCalculationClient;
   public readonly calibration: CalibrationClient;
+  public readonly careLinkConnect: CareLinkConnectClient;
   public readonly chartData: ChartDataClient;
   public readonly chatIdentity: ChatIdentityClient;
   public readonly chatIdentityDirectory: ChatIdentityDirectoryClient;
@@ -238,6 +240,7 @@ export class ApiClient {
     this.bolus = new BolusClient(apiBaseUrl, http);
     this.bolusCalculation = new BolusCalculationClient(apiBaseUrl, http);
     this.calibration = new CalibrationClient(apiBaseUrl, http);
+    this.careLinkConnect = new CareLinkConnectClient(apiBaseUrl, http);
     this.chartData = new ChartDataClient(apiBaseUrl, http);
     this.chatIdentity = new ChatIdentityClient(apiBaseUrl, http);
     this.chatIdentityDirectory = new ChatIdentityDirectoryClient(apiBaseUrl, http);
