@@ -73,6 +73,7 @@ export * from './currentTherapyStates.generated.remote';
 export * from './dataOverviews.generated.remote';
 export { getPredictions } from './predictions.generated.remote';
 export * from './retrospectives.generated.remote';
+export * from './sensorIntegrities.generated.remote';
 export * from './stateSpans.generated.remote';
 export * from './statistics.generated.remote';
 export { upload } from './avatars.generated.remote';

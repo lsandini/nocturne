@@ -21288,6 +21288,116 @@
         "x-remote-type": "query"
       }
     },
+    "/api/v4/sensor-integrity": {
+      "get": {
+        "tags": [
+          "Sensor Integrity"
+        ],
+        "summary": "Analyze a UTC window for sensor-integrity clusters and cluster-linked hypo events.",
+        "operationId": "SensorIntegrity_Analyze",
+        "parameters": [
+          {
+            "name": "startDate",
+            "in": "query",
+            "description": "Inclusive UTC start of the window.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "description": "Exclusive UTC end of the window.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "x-position": 2
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "Optional data source filter; omitted analyzes the combined stream.",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 3
+          },
+          {
+            "name": "bySource",
+            "in": "query",
+            "description": "When true, also return a per-data-source breakdown.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "x-position": 4
+          },
+          {
+            "name": "minConfidence",
+            "in": "query",
+            "description": "Minimum cluster confidence for a hypo event to be reported.",
+            "schema": {
+              "default": "Medium",
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ClusterConfidence"
+                }
+              ]
+            },
+            "x-position": 5
+          },
+          {
+            "name": "requireInsulin",
+            "in": "query",
+            "description": "When true, only report hypo events with insulin dosed during the cluster.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "x-position": 6
+          },
+          {
+            "name": "hypoThresholdMgdl",
+            "in": "query",
+            "description": "Glucose level (mg/dL) below which a reading counts as hypo.",
+            "schema": {
+              "type": "number",
+              "format": "double",
+              "default": 70.0
+            },
+            "x-position": 7
+          },
+          {
+            "name": "windowHours",
+            "in": "query",
+            "description": "Hours after a cluster to search for a hypo nadir.",
+            "schema": {
+              "type": "number",
+              "format": "double",
+              "default": 3.0
+            },
+            "x-position": 8
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sensor-integrity report for the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SensorIntegrityReport"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "query"
+      }
+    },
     "/api/v4/state-spans": {
       "get": {
         "tags": [
@@ -43840,6 +43950,231 @@
           },
           "isTemp": {
             "type": "boolean"
+          }
+        }
+      },
+      "SensorIntegrityReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "clusters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlucoseCluster"
+            }
+          },
+          "hypoEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SensorIntegrityHypoEvent"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SensorIntegritySummary"
+          },
+          "perSource": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/SensorIntegritySourceMetrics"
+            }
+          }
+        }
+      },
+      "GlucoseCluster": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "minMgdl": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxMgdl": {
+            "type": "number",
+            "format": "double"
+          },
+          "durationMinutes": {
+            "type": "number",
+            "format": "double"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/ClusterConfidence"
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/ClusterDiagnostics"
+          }
+        }
+      },
+      "ClusterConfidence": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Low",
+          "Medium",
+          "High"
+        ],
+        "enum": [
+          "Low",
+          "Medium",
+          "High"
+        ]
+      },
+      "ClusterDiagnostics": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "samplingIntervalMinutes": {
+            "type": "number",
+            "format": "double"
+          },
+          "windowPoints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "peakReversals": {
+            "type": "number",
+            "format": "double"
+          },
+          "peakIncoherenceRatio": {
+            "type": "number",
+            "format": "double"
+          },
+          "amplitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxStep": {
+            "type": "number",
+            "format": "double"
+          },
+          "spikePromoted": {
+            "type": "boolean"
+          },
+          "chainSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "chainPromoted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SensorIntegrityHypoEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/HypoEvent"
+          },
+          "isNocturnal": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HypoEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "cluster": {
+            "$ref": "#/components/schemas/GlucoseCluster"
+          },
+          "nadirMgdl": {
+            "type": "number",
+            "format": "double"
+          },
+          "nadirTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeToNadirHours": {
+            "type": "number",
+            "format": "double"
+          },
+          "readingsBelowThreshold": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "insulinDuringCluster": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsulinDose"
+            }
+          }
+        }
+      },
+      "InsulinDose": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "units": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "SensorIntegritySummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "clusters": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "mediumClusters": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "highClusters": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "events": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nocturnalEvents": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SensorIntegritySourceMetrics": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SensorIntegritySummary"
           }
         }
       },

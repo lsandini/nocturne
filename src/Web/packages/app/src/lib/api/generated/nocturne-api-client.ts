@@ -23083,6 +23083,93 @@ export class RetrospectiveClient {
     }
 }
 
+export class SensorIntegrityClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "";
+    }
+
+    /**
+     * Analyze a UTC window for sensor-integrity clusters and cluster-linked hypo events.
+     * @param startDate (optional) Inclusive UTC start of the window.
+     * @param endDate (optional) Exclusive UTC end of the window.
+     * @param source (optional) Optional data source filter; omitted analyzes the combined stream.
+     * @param bySource (optional) When true, also return a per-data-source breakdown.
+     * @param minConfidence (optional) Minimum cluster confidence for a hypo event to be reported.
+     * @param requireInsulin (optional) When true, only report hypo events with insulin dosed during the cluster.
+     * @param hypoThresholdMgdl (optional) Glucose level (mg/dL) below which a reading counts as hypo.
+     * @param windowHours (optional) Hours after a cluster to search for a hypo nadir.
+     * @return The sensor-integrity report for the window.
+     */
+    analyze(startDate?: Date | undefined, endDate?: Date | undefined, source?: string | null | undefined, bySource?: boolean | undefined, minConfidence?: ClusterConfidence | undefined, requireInsulin?: boolean | undefined, hypoThresholdMgdl?: number | undefined, windowHours?: number | undefined, signal?: AbortSignal): Promise<SensorIntegrityReport> {
+        let url_ = this.baseUrl + "/api/v4/sensor-integrity?";
+        if (startDate === null)
+            throw new globalThis.Error("The parameter 'startDate' cannot be null.");
+        else if (startDate !== undefined)
+            url_ += "startDate=" + encodeURIComponent(startDate ? "" + startDate.toISOString() : "") + "&";
+        if (endDate === null)
+            throw new globalThis.Error("The parameter 'endDate' cannot be null.");
+        else if (endDate !== undefined)
+            url_ += "endDate=" + encodeURIComponent(endDate ? "" + endDate.toISOString() : "") + "&";
+        if (source !== undefined && source !== null)
+            url_ += "source=" + encodeURIComponent("" + source) + "&";
+        if (bySource === null)
+            throw new globalThis.Error("The parameter 'bySource' cannot be null.");
+        else if (bySource !== undefined)
+            url_ += "bySource=" + encodeURIComponent("" + bySource) + "&";
+        if (minConfidence === null)
+            throw new globalThis.Error("The parameter 'minConfidence' cannot be null.");
+        else if (minConfidence !== undefined)
+            url_ += "minConfidence=" + encodeURIComponent("" + minConfidence) + "&";
+        if (requireInsulin === null)
+            throw new globalThis.Error("The parameter 'requireInsulin' cannot be null.");
+        else if (requireInsulin !== undefined)
+            url_ += "requireInsulin=" + encodeURIComponent("" + requireInsulin) + "&";
+        if (hypoThresholdMgdl === null)
+            throw new globalThis.Error("The parameter 'hypoThresholdMgdl' cannot be null.");
+        else if (hypoThresholdMgdl !== undefined)
+            url_ += "hypoThresholdMgdl=" + encodeURIComponent("" + hypoThresholdMgdl) + "&";
+        if (windowHours === null)
+            throw new globalThis.Error("The parameter 'windowHours' cannot be null.");
+        else if (windowHours !== undefined)
+            url_ += "windowHours=" + encodeURIComponent("" + windowHours) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processAnalyze(_response);
+        });
+    }
+
+    protected processAnalyze(response: Response): Promise<SensorIntegrityReport> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SensorIntegrityReport;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<SensorIntegrityReport>(null as any);
+    }
+}
+
 export class StateSpansClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -33737,6 +33824,77 @@ export interface BasalDataPoint {
     timeLabel?: string | undefined;
     rate?: number;
     isTemp?: boolean;
+}
+
+export interface SensorIntegrityReport {
+    from?: Date;
+    to?: Date;
+    source?: string | undefined;
+    clusters?: GlucoseCluster[];
+    hypoEvents?: SensorIntegrityHypoEvent[];
+    summary?: SensorIntegritySummary;
+    perSource?: SensorIntegritySourceMetrics[] | undefined;
+}
+
+export interface GlucoseCluster {
+    start?: Date;
+    end?: Date;
+    minMgdl?: number;
+    maxMgdl?: number;
+    durationMinutes?: number;
+    confidence?: ClusterConfidence;
+    diagnostics?: ClusterDiagnostics;
+}
+
+export enum ClusterConfidence {
+    Low = "Low",
+    Medium = "Medium",
+    High = "High",
+}
+
+export interface ClusterDiagnostics {
+    samplingIntervalMinutes?: number;
+    windowPoints?: number;
+    peakReversals?: number;
+    peakIncoherenceRatio?: number;
+    amplitude?: number;
+    maxStep?: number;
+    spikePromoted?: boolean;
+    chainSize?: number;
+    chainPromoted?: boolean;
+}
+
+export interface SensorIntegrityHypoEvent {
+    event?: HypoEvent;
+    isNocturnal?: boolean;
+}
+
+export interface HypoEvent {
+    cluster?: GlucoseCluster;
+    nadirMgdl?: number;
+    nadirTime?: Date;
+    timeToNadirHours?: number;
+    readingsBelowThreshold?: number;
+    insulinDuringCluster?: InsulinDose[];
+}
+
+export interface InsulinDose {
+    time?: Date;
+    units?: number;
+}
+
+export interface SensorIntegritySummary {
+    days?: number;
+    clusters?: number;
+    mediumClusters?: number;
+    highClusters?: number;
+    events?: number;
+    nocturnalEvents?: number;
+}
+
+export interface SensorIntegritySourceMetrics {
+    source?: string;
+    summary?: SensorIntegritySummary;
 }
 
 export interface PaginatedResponseOfStateSpan {
