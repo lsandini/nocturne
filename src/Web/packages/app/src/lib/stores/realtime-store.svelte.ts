@@ -673,6 +673,24 @@ export class RealtimeStore {
     }
   }
 
+  /** Optimistically mark every loaded notification read so the badge and styling
+   *  update instantly; the server's notificationUpdated broadcast reconciles other
+   *  clients (and this one). */
+  markAllNotificationsRead(): void {
+    const readAt = new Date();
+    this.inAppNotifications = this.inAppNotifications.map((n) =>
+      n.readAt ? n : { ...n, readAt }
+    );
+  }
+
+  /** Optimistically mark a single notification read by id. */
+  markNotificationRead(id: string): void {
+    const readAt = new Date();
+    this.inAppNotifications = this.inAppNotifications.map((n) =>
+      n.id === id && !n.readAt ? { ...n, readAt } : n
+    );
+  }
+
   /** Handle new in-app notification from SignalR */
   private handleNotificationCreated(notification: InAppNotificationDto): void {
     // Add if not already present
