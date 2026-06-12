@@ -24890,7 +24890,7 @@
           "Oidc"
         ],
         "summary": "Refresh the session tokens.\nUses the refresh token to get a new access token.",
-        "description": "The refresh token is read from the cookie or the Refresh Authorization header (for API clients).\nOn failure, all session cookies are cleared to force re-authentication.\nLogs TokenRefreshed on success.",
+        "description": "The refresh token is read from the cookie or the Refresh Authorization header (for API clients).\nOn failure, returns 401 without touching cookies — session cookies are domain-wide, so a\ndeletion issued for a stale token would wipe a newer session the browser obtained concurrently.\nLogs TokenRefreshed on success.",
         "operationId": "Oidc_Refresh",
         "responses": {
           "200": {
