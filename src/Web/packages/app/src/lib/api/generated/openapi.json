@@ -11759,6 +11759,58 @@
         ]
       }
     },
+    "/api/v4/alerts/excursions/{excursionId}/acknowledge": {
+      "post": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Acknowledge a single alert excursion, halting escalation delivery for its\nactive instances. Acknowledging an excursion that is already acknowledged\nor already closed is a no-op. Returns 404 when the excursion does not\nexist for the current tenant.",
+        "operationId": "Alerts_AcknowledgeExcursion",
+        "parameters": [
+          {
+            "name": "excursionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgeRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "command",
+        "x-remote-invalidates": [
+          "GetActiveAlerts"
+        ]
+      }
+    },
     "/api/v4/alerts/instances/{instanceId}/snooze": {
       "post": {
         "tags": [

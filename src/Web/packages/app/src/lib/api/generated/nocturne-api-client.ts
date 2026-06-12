@@ -12781,6 +12781,56 @@ export class AlertsClient {
     }
 
     /**
+     * Acknowledge a single alert excursion, halting escalation delivery for its
+    active instances. Acknowledging an excursion that is already acknowledged
+    or already closed is a no-op. Returns 404 when the excursion does not
+    exist for the current tenant.
+     */
+    acknowledgeExcursion(excursionId: string, request: AcknowledgeRequest, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/v4/alerts/excursions/{excursionId}/acknowledge";
+        if (excursionId === undefined || excursionId === null)
+            throw new globalThis.Error("The parameter 'excursionId' must be defined.");
+        url_ = url_.replace("{excursionId}", encodeURIComponent("" + excursionId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processAcknowledgeExcursion(_response);
+        });
+    }
+
+    protected processAcknowledgeExcursion(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status === 404) {
+            return response.text().then((_responseText) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result404);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
      * Snooze an alert instance for the specified duration.
      */
     snoozeInstance(instanceId: string, request: SnoozeRequest, signal?: AbortSignal): Promise<void> {
