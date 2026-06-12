@@ -584,9 +584,10 @@
                   <div
                     class="flex items-center gap-1 rounded-md border bg-background pr-1 hover:bg-muted"
                   >
-                    <button
-                      type="button"
-                      class="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs h-auto"
                       onclick={() => openReplay(h.startedAt)}
                       title="Replay this day in the simulator"
                     >
@@ -602,7 +603,7 @@
                           ack
                         </span>
                       {/if}
-                    </button>
+                    </Button>
                     {#if dayInReviewHref(h.startedAt)}
                       <Button
                         variant="ghost"
