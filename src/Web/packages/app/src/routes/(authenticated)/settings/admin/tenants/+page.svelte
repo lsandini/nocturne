@@ -71,7 +71,7 @@
     loading = true;
     loadError = null;
     try {
-      tenant = await tenantRemote.getById(currentTenantId);
+      tenant = await tenantRemote.getById(currentTenantId).run();
     } catch {
       loadError = "Failed to load tenant details.";
     } finally {
@@ -80,8 +80,9 @@
   }
 
   $effect(() => {
+    // `.run()` rejects during the render/effect flush, so defer out of it.
     if (currentTenantId) {
-      loadTenant();
+      queueMicrotask(loadTenant);
     }
   });
 
