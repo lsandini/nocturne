@@ -233,14 +233,6 @@
     },
     );
 
-    if (totalTenantCount >= 2) {
-      items.push({
-        title: "Tenants",
-        href: "/tenants",
-        icon: Building2,
-      });
-    }
-
     items.push(
     {
       title: "Alerts",
