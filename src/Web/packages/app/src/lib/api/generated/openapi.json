@@ -36368,6 +36368,10 @@
             "type": "string",
             "nullable": true
           },
+          "build": {
+            "type": "string",
+            "nullable": true
+          },
           "isDemo": {
             "type": "boolean",
             "nullable": true
