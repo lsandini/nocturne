@@ -23079,6 +23079,53 @@ export class PredictionClient {
         }
         return Promise.resolve<PredictionStatusResponse>(null as any);
     }
+
+    /**
+     * Get the pre-resolved therapy profile for the next 24 hours, flattened into contiguous
+    absolute-time segments, for an offline on-device oref prediction run.
+     * @param profileId (optional) Optional profile name. The device omits it (resolves the active profile).
+     */
+    getProfileSnapshot(profileId?: string | null | undefined, signal?: AbortSignal): Promise<ProfileSnapshotResponse> {
+        let url_ = this.baseUrl + "/api/v4/predictions/profile-snapshot?";
+        if (profileId !== undefined && profileId !== null)
+            url_ += "profileId=" + encodeURIComponent("" + profileId) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGetProfileSnapshot(_response);
+        });
+    }
+
+    protected processGetProfileSnapshot(response: Response): Promise<ProfileSnapshotResponse> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProfileSnapshotResponse;
+            return result200;
+            });
+        } else if (status === 500) {
+            return response.text().then((_responseText) => {
+            let result500: any = null;
+            result500 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PredictionErrorResponse;
+            return throwException("A server side error occurred.", status, _responseText, _headers, result500);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProfileSnapshotResponse>(null as any);
+    }
 }
 
 export class RetrospectiveClient {
@@ -33916,6 +33963,38 @@ export interface PredictionStatusResponse {
     available?: boolean;
     /** Configured prediction source (None, DeviceStatus, OrefWasm) */
     source?: string;
+}
+
+/** Pre-resolved therapy profile flattened into contiguous absolute-time segments covering [now, now+24h) for on-device oref prediction. Property names are pinned to snake_case with JsonPropertyNameAttribute so the wire contract is independent of any ambient serializer naming policy, and every field is emitted (including zeros) so the client's strict decoder never sees a missing key. */
+export interface ProfileSnapshotResponse {
+    /** When the snapshot was resolved (Unix ms); equals the window start. */
+    fetched_at_mills?: number;
+    /** Ascending, contiguous, gap/overlap-free segments covering [now, now+24h). */
+    segments?: ProfileSnapshotSegment[];
+}
+
+/** One flat segment of the resolved profile: all scalars are constant over [start, end). */
+export interface ProfileSnapshotSegment {
+    /** Segment start (Unix ms, inclusive). */
+    start_mills?: number;
+    /** Segment end (Unix ms, exclusive). */
+    end_mills?: number;
+    /** Duration of insulin action (hours). */
+    dia?: number;
+    /** Scheduled basal rate (U/hr). */
+    basal?: number;
+    /** Insulin sensitivity (mg/dL per U). */
+    sens?: number;
+    /** Carb ratio (g/U). */
+    carb_ratio?: number;
+    /** Low BG target (mg/dL). */
+    min_bg?: number;
+    /** High BG target (mg/dL). */
+    max_bg?: number;
+    /** Insulin activity peak (minutes). */
+    peak?: number;
+    /** Insulin activity curve model name (e.g. "rapid-acting"). */
+    curve?: string;
 }
 
 /** Response for single point retrospective data */

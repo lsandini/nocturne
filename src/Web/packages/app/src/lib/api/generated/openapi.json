@@ -21304,6 +21304,52 @@
         "x-client-property": "predictions"
       }
     },
+    "/api/v4/predictions/profile-snapshot": {
+      "get": {
+        "tags": [
+          "Prediction"
+        ],
+        "summary": "Get the pre-resolved therapy profile for the next 24 hours, flattened into contiguous\nabsolute-time segments, for an offline on-device oref prediction run.",
+        "description": "Unlike GetPredictions, this action is intentionally available regardless of\nPredictions:Source: the client runs oref on-device and needs its therapy profile\nprecisely when server-side prediction is off (the offline case). It depends only on the\nunconditionally-registered profile resolvers, not on IPredictionService, so it\ncarries no _predictionService/_source guard.\n            \nClients must additionally apply the fixed oref constants max_iob=10, max_basal=4,\nmax_daily_basal=2 (which PredictionService.GetProfileAsync hardcodes) to match a\nserver-side oref run; they are not part of this payload.",
+        "operationId": "Prediction_GetProfileSnapshot",
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "query",
+            "description": "Optional profile name. The device omits it (resolves the active profile).",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileSnapshotResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-remote-type": "query",
+        "x-client-property": "predictions"
+      }
+    },
     "/api/v4/Retrospective/at": {
       "get": {
         "tags": [
@@ -43826,6 +43872,81 @@
           "source": {
             "type": "string",
             "description": "Configured prediction source (None, DeviceStatus, OrefWasm)"
+          }
+        }
+      },
+      "ProfileSnapshotResponse": {
+        "type": "object",
+        "description": "Pre-resolved therapy profile flattened into contiguous absolute-time segments covering\n[now, now+24h) for on-device oref prediction. Property names are pinned to snake_case\nwith JsonPropertyNameAttribute so the wire contract is independent of any ambient\nserializer naming policy, and every field is emitted (including zeros) so the client's strict\ndecoder never sees a missing key.",
+        "additionalProperties": false,
+        "properties": {
+          "fetched_at_mills": {
+            "type": "integer",
+            "description": "When the snapshot was resolved (Unix ms); equals the window start.",
+            "format": "int64"
+          },
+          "segments": {
+            "type": "array",
+            "description": "Ascending, contiguous, gap/overlap-free segments covering [now, now+24h).",
+            "items": {
+              "$ref": "#/components/schemas/ProfileSnapshotSegment"
+            }
+          }
+        }
+      },
+      "ProfileSnapshotSegment": {
+        "type": "object",
+        "description": "One flat segment of the resolved profile: all scalars are constant over [start, end).",
+        "additionalProperties": false,
+        "properties": {
+          "start_mills": {
+            "type": "integer",
+            "description": "Segment start (Unix ms, inclusive).",
+            "format": "int64"
+          },
+          "end_mills": {
+            "type": "integer",
+            "description": "Segment end (Unix ms, exclusive).",
+            "format": "int64"
+          },
+          "dia": {
+            "type": "number",
+            "description": "Duration of insulin action (hours).",
+            "format": "double"
+          },
+          "basal": {
+            "type": "number",
+            "description": "Scheduled basal rate (U/hr).",
+            "format": "double"
+          },
+          "sens": {
+            "type": "number",
+            "description": "Insulin sensitivity (mg/dL per U).",
+            "format": "double"
+          },
+          "carb_ratio": {
+            "type": "number",
+            "description": "Carb ratio (g/U).",
+            "format": "double"
+          },
+          "min_bg": {
+            "type": "number",
+            "description": "Low BG target (mg/dL).",
+            "format": "double"
+          },
+          "max_bg": {
+            "type": "number",
+            "description": "High BG target (mg/dL).",
+            "format": "double"
+          },
+          "peak": {
+            "type": "integer",
+            "description": "Insulin activity peak (minutes).",
+            "format": "int32"
+          },
+          "curve": {
+            "type": "string",
+            "description": "Insulin activity curve model name (e.g. \"rapid-acting\")."
           }
         }
       },
