@@ -39425,6 +39425,10 @@
               "data_source": {
                 "type": "string",
                 "nullable": true
+              },
+              "syncIdentifier": {
+                "type": "string",
+                "nullable": true
               }
             }
           }
@@ -39479,6 +39483,10 @@
               "data_source": {
                 "type": "string",
                 "nullable": true
+              },
+              "syncIdentifier": {
+                "type": "string",
+                "nullable": true
               }
             }
           }
@@ -39522,7 +39530,12 @@
           },
           "dataSource": {
             "type": "string",
-            "description": "Upstream data source identifier.",
+            "description": "Upstream data source identifier; paired with SyncIdentifier for dedup.",
+            "nullable": true
+          },
+          "syncIdentifier": {
+            "type": "string",
+            "description": "Stable per-source identifier. When paired with DataSource, re-uploading the\nsame measurement updates the existing record in place rather than creating a duplicate.",
             "nullable": true
           }
         }
@@ -39827,6 +39840,10 @@
               "data_source": {
                 "type": "string",
                 "nullable": true
+              },
+              "syncIdentifier": {
+                "type": "string",
+                "nullable": true
               }
             }
           }
@@ -39870,7 +39887,12 @@
           },
           "dataSource": {
             "type": "string",
-            "description": "Upstream data source identifier.",
+            "description": "Upstream data source identifier; paired with SyncIdentifier for dedup.",
+            "nullable": true
+          },
+          "syncIdentifier": {
+            "type": "string",
+            "description": "Stable per-source identifier. When paired with DataSource, re-uploading the\nsame measurement updates the existing record in place rather than creating a duplicate.",
             "nullable": true
           }
         }

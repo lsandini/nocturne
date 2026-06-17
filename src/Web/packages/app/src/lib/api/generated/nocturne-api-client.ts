@@ -32567,6 +32567,7 @@ export interface BodyWeight extends ProcessableDocumentBase {
     device?: string | undefined;
     enteredBy?: string | undefined;
     data_source?: string | undefined;
+    syncIdentifier?: string | undefined;
 }
 
 export function isBodyWeight(object: any): object is BodyWeight {
@@ -32584,6 +32585,7 @@ export interface HeartRate extends ProcessableDocumentBase {
     device?: string | undefined;
     enteredBy?: string | undefined;
     data_source?: string | undefined;
+    syncIdentifier?: string | undefined;
 }
 
 export function isHeartRate(object: any): object is HeartRate {
@@ -32604,8 +32606,11 @@ export interface UpsertHeartRateRequest {
     device?: string | undefined;
     /** Name of the application that submitted this record. */
     app?: string | undefined;
-    /** Upstream data source identifier. */
+    /** Upstream data source identifier; paired with SyncIdentifier for dedup. */
     dataSource?: string | undefined;
+    /** Stable per-source identifier. When paired with DataSource, re-uploading the
+same measurement updates the existing record in place rather than creating a duplicate. */
+    syncIdentifier?: string | undefined;
 }
 
 export interface PatientRecord {
@@ -32698,6 +32703,7 @@ export interface StepCount extends ProcessableDocumentBase {
     device?: string | undefined;
     enteredBy?: string | undefined;
     data_source?: string | undefined;
+    syncIdentifier?: string | undefined;
 }
 
 export function isStepCount(object: any): object is StepCount {
@@ -32718,8 +32724,11 @@ export interface UpsertStepCountRequest {
     device?: string | undefined;
     /** Name of the application that submitted this record. */
     app?: string | undefined;
-    /** Upstream data source identifier. */
+    /** Upstream data source identifier; paired with SyncIdentifier for dedup. */
     dataSource?: string | undefined;
+    /** Stable per-source identifier. When paired with DataSource, re-uploading the
+same measurement updates the existing record in place rather than creating a duplicate. */
+    syncIdentifier?: string | undefined;
 }
 
 export interface BGCheck {
