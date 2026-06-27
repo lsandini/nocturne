@@ -1,7 +1,6 @@
 <script lang="ts">
-  import * as Tooltip from "$lib/components/ui/tooltip";
-  import { Skeleton } from "$lib/components/ui/skeleton";
-  import { Previous } from "runed";
+  import * as Tooltip from "./tooltip";
+  import { Skeleton } from "./skeleton";
 
   interface Props {
     /** Glucose value to display (already formatted for units) */
@@ -42,27 +41,21 @@
     class: className = "",
   }: Props = $props();
 
-  // Track previous value using runed's Previous utility
-  const previousDisplayValue = new Previous(() => displayValue);
-
-  // Track pulse animation state
+  // Pulse the tile once whenever the value changes (skipping the initial load). Tracked with a
+  // plain previous-value field rather than a dependency, so the design system stays standalone.
   let isPulsing = $state(false);
-
-  // Trigger pulse when value changes (skip initial load)
-  const shouldPulse = $derived(
-    previousDisplayValue.current !== null &&
-      previousDisplayValue.current !== displayValue &&
-      !isLoading
-  );
-
+  let previousValue: string | number | null = null;
   $effect(() => {
-    if (shouldPulse) {
+    const value = displayValue;
+    if (previousValue !== null && previousValue !== value && !isLoading) {
+      previousValue = value;
       isPulsing = true;
       const timeout = setTimeout(() => {
         isPulsing = false;
       }, 600);
       return () => clearTimeout(timeout);
     }
+    previousValue = value;
   });
 
   // Get background color based on BG value (only when not stale)

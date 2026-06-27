@@ -20,6 +20,10 @@
   // The route param identifies the clock and is the capability for its glucose.
   const id = page.params.id ?? "";
 
+  // `?embed=1` hosts this page inside the desktop companion's floating window, where the in-app
+  // navigation (which links back to the authenticated /clock area) doesn't apply.
+  const embed = $derived(page.url.searchParams.get("embed") === "1");
+
   // This is the anonymous public view: there is no realtime store in context here.
   // Poll the capability-scoped, glucose-only endpoint and expose it to
   // ClockFaceRenderer via the shared ClockGlucoseSource context.
@@ -106,6 +110,10 @@
   <title>Clock - Nocturne</title>
 </svelte:head>
 
+<!-- In the companion's transparent overlay window (`?embed=1`), clear the page background so the
+     desktop shows through behind the clock face. -->
+<svelte:body class:embed-transparent={embed} />
+
 {#if loading}
   <div class="fixed inset-0 flex items-center justify-center bg-neutral-950">
     <Loader2 class="size-12 animate-spin text-white/50" />
@@ -120,6 +128,7 @@
     </Button>
   </div>
 {:else if clockConfig}
+  {#if !embed}
   <!-- Navigation overlay (shows on hover) -->
   <div
     class="fixed inset-x-0 top-0 z-50 flex items-center justify-between p-4
@@ -152,6 +161,7 @@
       </Button>
     </div>
   </div>
+  {/if}
 
   <!-- Clock Display -->
   <ClockFaceRenderer
@@ -183,3 +193,17 @@
     {/if}
   {/if}
 {/if}
+
+<style>
+  /* A full-screen clock display never scrolls, in any mode. */
+  :global(html),
+  :global(body) {
+    overflow: hidden;
+  }
+
+  /* Embed-only (class toggled on <body> above): let the desktop show through the companion's
+     transparent overlay window. Unlayered, so it beats the `@layer base` body background. */
+  :global(body.embed-transparent) {
+    background: transparent;
+  }
+</style>

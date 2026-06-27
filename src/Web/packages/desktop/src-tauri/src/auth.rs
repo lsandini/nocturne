@@ -244,6 +244,12 @@ pub fn is_linked() -> bool {
     load().is_some()
 }
 
+/// The linked server's base URL, if any. The floating clock window uses it to build the public
+/// clock URL (`{server}/clock/{id}`); returns `None` when the companion isn't linked yet.
+pub fn server_url() -> Option<String> {
+    load().map(|c| c.api_url)
+}
+
 /// Removes the stored credential (unlink).
 pub fn clear() -> Result<(), String> {
     match keyring_entry()?.delete_credential() {
