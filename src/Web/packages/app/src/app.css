@@ -60,3 +60,45 @@
     break-inside: avoid;
   }
 }
+
+/*
+ * Monochrome chart textures, defined in <ChartPrintPatterns />. Active while
+ * printing and when the "always show patterns" appearance setting is on — both
+ * toggle `.chart-patterns-on` on the document root. SVG marks swap fill to the
+ * pattern; HTML bars keep their background-color and gain a texture overlay.
+ * fill-opacity is forced to 1 so translucent bands keep a legible texture.
+ */
+.chart-patterns-on {
+  & [class*="chart-pat-"] { fill-opacity: 1 !important; }
+
+  & .chart-pat-very-low { fill: url(#print-pat-very-low) !important; }
+  & .chart-pat-low { fill: url(#print-pat-low) !important; }
+  & .chart-pat-in-range { fill: url(#print-pat-in-range) !important; }
+  & .chart-pat-tight-range { fill: url(#print-pat-tight-range) !important; }
+  & .chart-pat-high { fill: url(#print-pat-high) !important; }
+  & .chart-pat-very-high { fill: url(#print-pat-very-high) !important; }
+
+  & .chart-pat-cat-1 { fill: url(#print-pat-cat-1) !important; }
+  & .chart-pat-cat-2 { fill: url(#print-pat-cat-2) !important; }
+  & .chart-pat-cat-3 { fill: url(#print-pat-cat-3) !important; }
+  & .chart-pat-cat-4 { fill: url(#print-pat-cat-4) !important; }
+  & .chart-pat-cat-5 { fill: url(#print-pat-cat-5) !important; }
+  & .chart-pat-cat-6 { fill: url(#print-pat-cat-6) !important; }
+
+  & .chart-bgpat-very-low {
+    background-image: repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.55) 0 1px, transparent 1px 5px) !important;
+  }
+  & .chart-bgpat-low {
+    background-image: repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.55) 0 1px, transparent 1px 9px) !important;
+  }
+  & .chart-bgpat-tight-range {
+    background-image: radial-gradient(rgba(0, 0, 0, 0.55) 0.8px, transparent 1px) !important;
+    background-size: 6px 6px !important;
+  }
+  & .chart-bgpat-high {
+    background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.55) 0 1px, transparent 1px 9px) !important;
+  }
+  & .chart-bgpat-very-high {
+    background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.55) 0 1px, transparent 1px 5px) !important;
+  }
+}
