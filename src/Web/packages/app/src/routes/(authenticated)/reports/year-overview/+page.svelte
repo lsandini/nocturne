@@ -687,3 +687,4 @@
       {navigateToDayInReview}
     />
   </div>
+</div>
