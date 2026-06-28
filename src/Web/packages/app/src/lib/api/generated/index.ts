@@ -24,14 +24,14 @@ export { getGlucose } from './clockFaces.generated.remote';
 export * from './glucoseProcessingSettings.generated.remote';
 export * from './profiles.generated.remote';
 export * from './userPreferences.generated.remote';
-export { approve, deny } from './accessRequests.generated.remote';
-export * from './connectorAdmins.generated.remote';
-// './platformSettings.generated.remote' - all exports collide, import directly
-export { addMember, removeMember, listInvites, provision, getMemberCredentials, attachOidcIdentity, removePasskeyCredential, removeOidcIdentity } from './tenants.generated.remote';
 export * from './services.generated.remote';
 // './status.generated.remote' - all exports collide, import directly
 export * from './supports.generated.remote';
 export * from './systems.generated.remote';
+export { approve, deny } from './accessRequests.generated.remote';
+export * from './connectorAdmins.generated.remote';
+// './platformSettings.generated.remote' - all exports collide, import directly
+export { addMember, removeMember, listInvites, provision, getMemberCredentials, attachOidcIdentity, removePasskeyCredential, removeOidcIdentity } from './tenants.generated.remote';
 export * from './alertCustomSounds.generated.remote';
 export { validateInvite, redeemInvite } from './alertInvites.generated.remote';
 export * from './alertReplays.generated.remote';
@@ -80,5 +80,5 @@ export { upload } from './avatars.generated.remote';
 // './directGrants.generated.remote' - all exports collide, import directly
 export * from './oAuths.generated.remote';
 export * from './oidcs.generated.remote';
-export { registerOptions, registerComplete, discoverableLoginOptions, loginOptions, loginComplete, recoveryVerify, regenerateRecoveryCodes, getRecoveryStatus, getAuthStatus, completeOnboarding, setupOptions, setupComplete, accessRequestOptions, accessRequestComplete, inviteOptions, inviteComplete } from './passkeys.generated.remote';
+export { registerOptions, registerComplete, discoverableLoginOptions, loginOptions, loginComplete, recoveryVerify, regenerateRecoveryCodes, getRecoveryStatus, getAuthStatus, completeOnboarding, accessRequestOptions, accessRequestComplete, inviteOptions, inviteComplete } from './passkeys.generated.remote';
 export { setup, verifySetup, login } from './totps.generated.remote';

@@ -13,8 +13,13 @@
     let filterSidebarOpen = $state(false);
 
     // Create shared date params instance and provide via context
-    // This is the SINGLE source of truth for all report components
-    const params = useDateParams();
+    // This is the SINGLE source of truth for all report components.
+    // Baseline default is 14 days — the clinical standard for glucose reports
+    // (AGP, overview, executive summary). Reports that prefer a shorter/longer
+    // window (e.g. readings=7, insulin-delivery=30) adjust via
+    // requireDateParamsContext(N); the headline 14-day reports then need no
+    // adjustment, so they no longer depend on the adjust-up path resolving.
+    const params = useDateParams(14);
     setDateParamsContext(params);
 
     // Create resource context for layout-level loading/error handling
