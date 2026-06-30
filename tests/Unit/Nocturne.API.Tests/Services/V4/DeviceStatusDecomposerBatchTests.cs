@@ -112,7 +112,7 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
         };
 
         // Act
-        var result = await _decomposer.DecomposeBatchAsync(statuses, WriteOrigin.Live);
+        var result = await _decomposer.DecomposeBatchAsync(statuses, source: null, WriteOrigin.Live);
 
         // Assert
         _apsRepoMock.Verify(
@@ -141,7 +141,7 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
     public async Task DecomposeBatchAsync_EmptyBatch_NoRepositoryCalls()
     {
         // Act
-        var result = await _decomposer.DecomposeBatchAsync([], WriteOrigin.Live);
+        var result = await _decomposer.DecomposeBatchAsync([], source: null, WriteOrigin.Live);
 
         // Assert
         _apsRepoMock.Verify(
@@ -178,7 +178,7 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
         };
 
         // Act
-        var result = await _decomposer.DecomposeBatchAsync(statuses, WriteOrigin.Live);
+        var result = await _decomposer.DecomposeBatchAsync(statuses, source: null, WriteOrigin.Live);
 
         // Assert — all produced snapshots share a single non-empty correlation id
         result.CorrelationId.Should().NotBeNull().And.NotBe(Guid.Empty);
@@ -217,7 +217,7 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
         };
 
         // Act
-        var result = await _decomposer.DecomposeBatchAsync(statuses, WriteOrigin.Live);
+        var result = await _decomposer.DecomposeBatchAsync(statuses, source: null, WriteOrigin.Live);
 
         // Assert - all three snapshot types extracted from one device status
         _apsRepoMock.Verify(
@@ -261,7 +261,7 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
         };
 
         // Act
-        await _decomposer.DecomposeBatchAsync(statuses, WriteOrigin.Live);
+        var result = await _decomposer.DecomposeBatchAsync(statuses, source: null, WriteOrigin.Live);
 
         // Assert
         _extrasRepoMock.Verify(
@@ -306,7 +306,7 @@ public class DeviceStatusDecomposerBatchTests : IDisposable
         };
 
         // Act
-        var result = await _decomposer.DecomposeBatchAsync(statuses, WriteOrigin.Live);
+        var result = await _decomposer.DecomposeBatchAsync(statuses, source: null, WriteOrigin.Live);
 
         // Assert
         _stateSpanServiceMock.Verify(

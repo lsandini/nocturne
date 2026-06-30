@@ -224,7 +224,8 @@ public class DeviceStatusController : ControllerBase
             var projectedResults = new List<DeviceStatus>();
             foreach (var ds in deviceStatusEntries)
             {
-                await _decomposer.DecomposeAsync(ds, WriteOrigin.Live, cancellationToken);
+                // Direct v1 upload has no connector data source; a live upload broadcasts.
+                await _decomposer.DecomposeAsync(ds, source: null, WriteOrigin.Live, cancellationToken);
 
                 // Project the V4 snapshots back to DeviceStatus shape for the response
                 var projected = ds;

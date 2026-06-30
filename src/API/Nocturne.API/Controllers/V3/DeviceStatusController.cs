@@ -274,7 +274,8 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
             var projectedResults = new List<DeviceStatus>();
             foreach (var ds in recordsList)
             {
-                await _decomposer.DecomposeAsync(ds, WriteOrigin.Live, cancellationToken);
+                // Direct v3 upload has no connector data source; a live upload broadcasts.
+                await _decomposer.DecomposeAsync(ds, source: null, WriteOrigin.Live, cancellationToken);
 
                 // Project the V4 snapshots back to DeviceStatus shape for the response
                 var projected = ds;
@@ -387,7 +388,8 @@ public class DeviceStatusController : BaseV3Controller<DeviceStatus>
 
             // Delete old V4 records by legacy ID, then decompose the updated DeviceStatus
             await _decomposer.DeleteByLegacyIdAsync(id, WriteOrigin.Live, cancellationToken);
-            await _decomposer.DecomposeAsync(deviceStatus, WriteOrigin.Live, cancellationToken);
+            // Direct v3 update has no connector data source; a live update broadcasts.
+            await _decomposer.DecomposeAsync(deviceStatus, source: null, WriteOrigin.Live, cancellationToken);
 
             // Project the V4 snapshots back to DeviceStatus shape for the response
             var updated = await _projection.GetByIdAsync(id, cancellationToken) ?? deviceStatus;

@@ -67,8 +67,16 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
         _logger = logger;
     }
 
+    /// <summary>
+    /// <see cref="IDecomposer{T}"/> entry point used by the generic decomposition pipeline and
+    /// migration paths, which carry no connector data source. Delegates to the source-aware
+    /// overload with <c>source: null</c>.
+    /// </summary>
+    public Task<V4Models.DecompositionResult> DecomposeAsync(DeviceStatus ds, WriteOrigin origin, CancellationToken ct = default)
+        => DecomposeAsync(ds, source: null, origin, ct);
+
     /// <inheritdoc />
-    public async Task<V4Models.DecompositionResult> DecomposeAsync(DeviceStatus ds, WriteOrigin origin, CancellationToken ct = default)
+    public async Task<V4Models.DecompositionResult> DecomposeAsync(DeviceStatus ds, string? source, WriteOrigin origin, CancellationToken ct = default)
     {
         var result = new V4Models.DecompositionResult
         {
@@ -85,7 +93,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
 
         if (ds.Pump != null)
         {
-            pumpDeviceId = await DecomposePumpAsync(ds, legacyId, result, origin, ct);
+            pumpDeviceId = await DecomposePumpAsync(ds, legacyId, source, result, origin, ct);
         }
 
         if (ds.Cgm != null)
@@ -95,16 +103,16 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
 
         if (ds.OpenAps != null)
         {
-            await DecomposeApsFromOpenApsAsync(ds, legacyId, result, pumpDeviceId, origin, ct);
+            await DecomposeApsFromOpenApsAsync(ds, legacyId, source, result, pumpDeviceId, origin, ct);
         }
         else if (ds.Loop != null)
         {
-            await DecomposeApsFromLoopAsync(ds, legacyId, result, pumpDeviceId, origin, ct);
+            await DecomposeApsFromLoopAsync(ds, legacyId, source, result, pumpDeviceId, origin, ct);
         }
 
         if (ds.Uploader != null || ds.UploaderBattery.HasValue)
         {
-            await DecomposeUploaderAsync(ds, legacyId, result, origin, ct);
+            await DecomposeUploaderAsync(ds, legacyId, source, result, origin, ct);
         }
 
         if (ds.Override is { Active: true })
@@ -120,9 +128,9 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
     #region APS Decomposition
 
     private async Task DecomposeApsFromOpenApsAsync(
-        DeviceStatus ds, string? legacyId, V4Models.DecompositionResult result, Guid? pumpDeviceId, WriteOrigin origin, CancellationToken ct)
+        DeviceStatus ds, string? legacyId, string? source, V4Models.DecompositionResult result, Guid? pumpDeviceId, WriteOrigin origin, CancellationToken ct)
     {
-        var model = MapToApsSnapshotFromOpenAps(ds, legacyId, result.CorrelationId);
+        var model = MapToApsSnapshotFromOpenAps(ds, legacyId, source, result.CorrelationId);
 
         model.DeviceId = pumpDeviceId;
         model.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpDeviceId, ds.Mills, ct);
@@ -131,9 +139,9 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
     }
 
     private async Task DecomposeApsFromLoopAsync(
-        DeviceStatus ds, string? legacyId, V4Models.DecompositionResult result, Guid? pumpDeviceId, WriteOrigin origin, CancellationToken ct)
+        DeviceStatus ds, string? legacyId, string? source, V4Models.DecompositionResult result, Guid? pumpDeviceId, WriteOrigin origin, CancellationToken ct)
     {
-        var model = MapToApsSnapshotFromLoop(ds, legacyId, result.CorrelationId);
+        var model = MapToApsSnapshotFromLoop(ds, legacyId, source, result.CorrelationId);
 
         model.DeviceId = pumpDeviceId;
         model.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpDeviceId, ds.Mills, ct);
@@ -179,9 +187,9 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
             : ds.Pump?.Model;
 
     private async Task<Guid?> DecomposePumpAsync(
-        DeviceStatus ds, string? legacyId, V4Models.DecompositionResult result, WriteOrigin origin, CancellationToken ct)
+        DeviceStatus ds, string? legacyId, string? source, V4Models.DecompositionResult result, WriteOrigin origin, CancellationToken ct)
     {
-        var model = MapToPumpSnapshot(ds, legacyId, result.CorrelationId);
+        var model = MapToPumpSnapshot(ds, legacyId, source, result.CorrelationId);
 
         model.DeviceId = await _deviceService.ResolveAsync(
             V4Models.DeviceCategory.InsulinPump,
@@ -473,9 +481,9 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
     #region Uploader Decomposition
 
     private async Task DecomposeUploaderAsync(
-        DeviceStatus ds, string? legacyId, V4Models.DecompositionResult result, WriteOrigin origin, CancellationToken ct)
+        DeviceStatus ds, string? legacyId, string? source, V4Models.DecompositionResult result, WriteOrigin origin, CancellationToken ct)
     {
-        var model = MapToUploaderSnapshot(ds, legacyId, result.CorrelationId);
+        var model = MapToUploaderSnapshot(ds, legacyId, source, result.CorrelationId);
 
         model.DeviceId = await _deviceService.ResolveAsync(
             V4Models.DeviceCategory.Uploader,
@@ -583,7 +591,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
 
     /// <inheritdoc />
     public async Task<V4Models.DecompositionResult> DecomposeBatchAsync(
-        IReadOnlyList<DeviceStatus> statuses, WriteOrigin origin, CancellationToken ct = default)
+        IReadOnlyList<DeviceStatus> statuses, string? source, WriteOrigin origin, CancellationToken ct = default)
     {
         if (statuses.Count == 0)
             return new V4Models.DecompositionResult();
@@ -612,7 +620,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
 
             if (ds.Pump != null)
             {
-                var pumpModel = MapToPumpSnapshot(ds, legacyId, correlationId);
+                var pumpModel = MapToPumpSnapshot(ds, legacyId, source, correlationId);
 
                 pumpModel.DeviceId = await _deviceService.ResolveAsync(
                     V4Models.DeviceCategory.InsulinPump,
@@ -632,14 +640,14 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
 
             if (ds.OpenAps != null)
             {
-                var apsModel = MapToApsSnapshotFromOpenAps(ds, legacyId, correlationId);
+                var apsModel = MapToApsSnapshotFromOpenAps(ds, legacyId, source, correlationId);
                 apsModel.DeviceId = pumpDeviceId;
                 apsModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpDeviceId, ds.Mills, ct);
                 apsList.Add(apsModel);
             }
             else if (ds.Loop != null)
             {
-                var apsModel = MapToApsSnapshotFromLoop(ds, legacyId, correlationId);
+                var apsModel = MapToApsSnapshotFromLoop(ds, legacyId, source, correlationId);
                 apsModel.DeviceId = pumpDeviceId;
                 apsModel.PatientDeviceId = await _deviceService.ResolvePatientDeviceAsync(pumpDeviceId, ds.Mills, ct);
                 apsList.Add(apsModel);
@@ -647,7 +655,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
 
             if (ds.Uploader != null || ds.UploaderBattery.HasValue)
             {
-                var uploaderModel = MapToUploaderSnapshot(ds, legacyId, correlationId);
+                var uploaderModel = MapToUploaderSnapshot(ds, legacyId, source, correlationId);
                 uploaderModel.DeviceId = await _deviceService.ResolveAsync(
                     V4Models.DeviceCategory.Uploader,
                     ds.Uploader?.Name,
@@ -782,7 +790,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
     #region Mapping Helpers
 
     private static V4Models.ApsSnapshot MapToApsSnapshotFromOpenAps(
-        DeviceStatus ds, string? legacyId, Guid? correlationId)
+        DeviceStatus ds, string? legacyId, string? source, Guid? correlationId)
     {
         var command = ds.OpenAps!.Enacted ?? ds.OpenAps.Suggested;
         var predBGs = command?.PredBGs;
@@ -794,6 +802,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
             UtcOffset = ds.UtcOffset,
             Device = ds.Device,
             LegacyId = legacyId,
+            DataSource = source,
             CorrelationId = correlationId,
             AidAlgorithm = apsSystem,
             Iob = ds.OpenAps.Iob?.Iob,
@@ -827,7 +836,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
     }
 
     private static V4Models.ApsSnapshot MapToApsSnapshotFromLoop(
-        DeviceStatus ds, string? legacyId, Guid? correlationId)
+        DeviceStatus ds, string? legacyId, string? source, Guid? correlationId)
     {
         return new V4Models.ApsSnapshot
         {
@@ -835,6 +844,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
             UtcOffset = ds.UtcOffset,
             Device = ds.Device,
             LegacyId = legacyId,
+            DataSource = source,
             CorrelationId = correlationId,
             AidAlgorithm = V4Models.AidAlgorithm.Loop,
             Iob = ds.Loop!.Iob?.Iob,
@@ -858,7 +868,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
     }
 
     private static V4Models.PumpSnapshot MapToPumpSnapshot(
-        DeviceStatus ds, string? legacyId, Guid? correlationId)
+        DeviceStatus ds, string? legacyId, string? source, Guid? correlationId)
     {
         return new V4Models.PumpSnapshot
         {
@@ -866,6 +876,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
             UtcOffset = ds.UtcOffset,
             Device = ds.Device,
             LegacyId = legacyId,
+            DataSource = source,
             CorrelationId = correlationId,
             Manufacturer = ds.Pump!.Manufacturer,
             Model = ds.Pump.Model,
@@ -887,7 +898,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
     }
 
     private static V4Models.UploaderSnapshot MapToUploaderSnapshot(
-        DeviceStatus ds, string? legacyId, Guid? correlationId)
+        DeviceStatus ds, string? legacyId, string? source, Guid? correlationId)
     {
         return new V4Models.UploaderSnapshot
         {
@@ -895,6 +906,7 @@ public class DeviceStatusDecomposer : IDeviceStatusDecomposer, IDecomposer<Devic
             UtcOffset = ds.UtcOffset,
             Device = ds.Device,
             LegacyId = legacyId,
+            DataSource = source,
             CorrelationId = correlationId,
             Name = ds.Uploader?.Name,
             Battery = ds.Uploader?.Battery ?? ds.UploaderBattery,
